@@ -1,6 +1,9 @@
 # Arch-Install
 Tailored for my laptop, based on "Ataraxxia secure-arch"
 
+# Arch-Install
+Tailored for my laptop, based on "Ataraxxia secure-arch"
+
 
 # ==============================================================================
 #  0. Cleanup Disk (Partition Table & Filesystem Signatures)
