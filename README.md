@@ -4,35 +4,35 @@
 #  Secure + Btrfs + LUKS2 + TPM2 + Secure Boot + Plymouth
 # ==============================================================================
 
-# ---------------------------
+
 # 0. Cleanup Disk
-# ---------------------------
+
 wipefs --all --force /dev/nvme0n1
 wipefs -n /dev/nvme0n1
 sgdisk --zap-all /dev/nvme0n1
 
-# ---------------------------
+
 # 1. Partitioning
-# ---------------------------
+
 sgdisk --new=1:0:+512MiB --typecode=1:EF00 --change-name=1:"EFI System Partition" /dev/nvme0n1
 sgdisk --new=2:0:0 --typecode=2:8309 --change-name=2:"Encrypted Root" /dev/nvme0n1
 partprobe /dev/nvme0n1
 
-# ---------------------------
+
 # 2. Encryption (LUKS2)
-# ---------------------------
+
 cryptsetup luksFormat --type luks2 --label cryptroot /dev/nvme0n1p2
 cryptsetup open /dev/nvme0n1p2 root
 
-# ---------------------------
+
 # 3. Filesystem Creation
-# ---------------------------
+
 mkfs.fat -F32 -n ESP /dev/nvme0n1p1
 mkfs.btrfs -L archroot /dev/mapper/root
 
-# ---------------------------
+
 # 4. Mounting & Btrfs Subvolumes
-# ---------------------------
+
 mount /dev/mapper/root /mnt
 btrfs subvolume create /mnt/@
 btrfs subvolume create /mnt/@home
@@ -45,15 +45,15 @@ mount -o noatime,compress=zstd,ssd,subvol=@home /dev/mapper/root /mnt/home
 mount -o noatime,compress=zstd,ssd,subvol=@snapshots /dev/mapper/root /mnt/.snapshots
 mount /dev/nvme0n1p1 /mnt/boot  # ESP mounted at /boot for systemd-boot
 
-# ---------------------------
+
 # 5. Time & NTP
-# ---------------------------
+
 timedatectl set-ntp true
 timedatectl set-timezone Europe/Amsterdam
 
-# ---------------------------
+
 # 6. Base System Installation
-# ---------------------------
+
 sed -i \
   -e 's/^ParallelDownloads =.*/ParallelDownloads = 20/' \
   -e 's/^#Color/Color/' \
@@ -84,9 +84,9 @@ pacstrap -K /mnt \
 genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt
 
-# ---------------------------
+
 # 8. Environment Variables
-# ---------------------------
+
 cat <<EOF > /etc/environment
 TERMINAL=alacritty
 EDITOR=nvim
@@ -94,9 +94,9 @@ VISUAL=nvim
 SHELL=/usr/bin/zsh
 EOF
 
-# ---------------------------
+
 # 9. Pacman & Mirrors (inside chroot)
-# ---------------------------
+
 timedatectl set-ntp true
 ln -sf /usr/share/zoneinfo/Europe/Amsterdam /etc/localtime
 hwclock --systohc
@@ -116,9 +116,9 @@ cat /etc/pacman.d/mirrorlist
 
 pacman -Syu --noconfirm
 
-# ---------------------------
+
 # 10. Essential Services
-# ---------------------------
+
 systemctl enable systemd-timesyncd
 systemctl enable reflector.timer
 systemctl enable fstrim.timer
@@ -133,9 +133,9 @@ cat <<EOF > /etc/NetworkManager/NetworkManager.conf
 wifi.backend=iwd
 EOF
 
-# ---------------------------
+
 # 11. Localization & Keyboard
-# ---------------------------
+
 sed -i '/^#en_US.UTF-8 UTF-8/s/^#//' /etc/locale.gen
 locale-gen
 
@@ -145,9 +145,9 @@ EOF
 
 echo KEYMAP=us > /etc/vconsole.conf
 
-# ---------------------------
+
 # 12. Hostname & Hosts
-# ---------------------------
+
 echo Arch-WA > /etc/hostname
 cat <<'EOF' > /etc/hosts
 127.0.0.1   localhost
@@ -157,18 +157,18 @@ EOF
 clear
 cat /etc/hosts
 
-# ---------------------------
+
 # 13. User & Root Setup
-# ---------------------------
+
 passwd
 sed -i '/^# %wheel ALL=(ALL:ALL) ALL/s/^# //' /etc/sudoers
 
 useradd -mG wheel,users -s /bin/zsh willem
 passwd willem
 
-# ---------------------------
+
 # 14. mkinitcpio Basics & Plymouth
-# ---------------------------
+
 sed -i 's/^MODULES=.*/MODULES=()/' /etc/mkinitcpio.conf
 sed -i 's/^BINARIES=.*/BINARIES=()/' /etc/mkinitcpio.conf
 sed -i 's|^HOOKS=.*|HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole plymouth block sd-encrypt filesystems fsck)|' /etc/mkinitcpio.conf
@@ -186,9 +186,9 @@ cat /etc/kernel/cmdline
 
 mkinitcpio -P
 
-# ---------------------------
+
 # 15. mkinitcpio Presets & Bootloader
-# ---------------------------
+
 cat <<EOF > /etc/mkinitcpio.d/linux.preset
 PRESETS=('default' 'fallback')
 ALL_kver="/boot/vmlinuz-linux"
@@ -201,9 +201,9 @@ cat /etc/mkinitcpio.d/linux.preset
 
 bootctl install
 
-# ---------------------------
+
 # 16. Pacman Hooks for sbctl Signing (UKIs)
-# ---------------------------
+
 mkdir -p /etc/pacman.d/hooks
 cat <<'EOF' > /etc/pacman.d/hooks/zz-sbctl-uki.hook
 [Trigger]
@@ -222,9 +222,9 @@ EOF
 clear
 cat /etc/pacman.d/hooks/zz-sbctl-uki.hook
 
-# ---------------------------
+
 # 17. Secure Boot & TPM2 Enrollment
-# ---------------------------
+
 sbctl create-keys
 sbctl enroll-keys --yes-this-might-brick-my-machine
 mkinitcpio -P
@@ -234,9 +234,9 @@ sbctl verify
 systemd-cryptenroll /dev/nvme0n1p2 --recovery-key
 systemd-cryptenroll /dev/nvme0n1p2 --tpm2-device=auto --tpm2-with-pin=true
 
-# ---------------------------
+
 # 18. Firewall & Kernel Hardening
-# ---------------------------
+
 cat <<'EOF' > /etc/nftables.conf
 table inet filter {
   chain input {
@@ -289,9 +289,9 @@ kernel.dmesg_restrict = 1
 fs.suid_dumpable = 0
 EOF
 
-# ---------------------------
+
 # 19. USBGuard & MAC Randomization
-# ---------------------------
+
 usbguard generate-policy | tee /etc/usbguard/rules.conf
 
 # Persistently block new devices and apply policy to present devices
@@ -307,9 +307,9 @@ wifi.cloned-mac-address=random
 ethernet.cloned-mac-address=random
 EOF
 
-# ---------------------------
+
 # 20. Disable unnecessary services
-# ---------------------------
+
 systemctl disable \
   NetworkManager-dispatcher.service \
   NetworkManager-wait-online.service \
@@ -327,9 +327,9 @@ systemctl disable \
   remote-integritysetup.target \
   remote-veritysetup.target
 
-# ---------------------------
+
 # 21. Timeshift Setup
-# ---------------------------
+
 mkdir -p /etc/timeshift
 UUID=$(blkid -s UUID -o value /dev/mapper/root)
 cat <<EOF > /etc/timeshift/default.json
@@ -347,9 +347,9 @@ cat <<EOF > /etc/timeshift/default.json
 }
 EOF
 
-# ---------------------------
+
 # 22. Post-Reboot User & Checks
-# ---------------------------
+
 Switch to standard user:
 su - willem
 sudo passwd root -l
@@ -360,9 +360,9 @@ sudo sbctl verify
 sudo usbguard list-devices
 chmod 700 /home/willem
 
-# ---------------------------
+
 # 23. System Cleanup & Base Snapshot
-# ---------------------------
+
 sudo journalctl --rotate
 sudo journalctl --vacuum-time=1s
 sudo rm -rf /var/tmp/*
