@@ -1,5 +1,5 @@
 # ==============================================================================
-#  Arch Linux Full Install (Willem Edition)
+#  Arch Linux Full Install
 #  Secure + ext4 + LUKS2 + TPM2 + Secure Boot + Plymouth
 # ==============================================================================
 
