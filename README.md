@@ -1,5 +1,5 @@
 # ==============================================================================
-#  Arch Linux Full Install
+#  Arch Linux Full Install (I copy pased or manual enter below commands)
 #  Secure + ext4 + LUKS2 + TPM2 + Secure Boot + Plymouth
 # ==============================================================================
 
