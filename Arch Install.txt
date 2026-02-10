@@ -398,7 +398,6 @@ systemctl disable \
   systemd-networkd.service \
   systemd-pstore.service \
   systemd-resolved.service \
-  systemd-journald-audit.socket \
   systemd-mountfsd.socket \
   systemd-nsresourced.socket \
   machines.target \
