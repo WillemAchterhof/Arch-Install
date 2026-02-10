@@ -280,6 +280,7 @@ systemd-cryptenroll /dev/nvme0n1p2 --recovery-key
 # 18️⃣  Firewall & Kernel Hardening
 # -------------------------------------------------------------------------
 
+cat <<'EOF' > /etc/nftables.conf
 table inet filter {
   chain input {
     type filter hook input priority filter;
@@ -301,28 +302,21 @@ table inet filter {
     udp dport { 546, 547 } accept;
 
     # mDNS on the sole Wi‑Fi interface
-    iifname "wlan0" ip daddr 224.0.0.251 udp dport 5353 accept;
-    iifname "wlan0" ip6 daddr ff02::fb udp dport 5353 accept;
+    ip daddr 224.0.0.251 udp dport 5353 accept;
+    ip6 daddr ff02::fb udp dport 5353 accept;
 
     # Example rate‑limit for any future exposed TCP service
     # tcp dport { 80, 443 } ct state new limit rate 30/second burst 100 accept;
   }
 
-  chain forward {
-    type filter hook forward priority filter;
-    policy drop;
-  }
-
-  chain output {
-    type filter hook output priority filter;
-    policy accept;
-  }
+  chain forward { type filter hook forward priority filter;  policy drop; }
+  chain output {  type filter hook output priority filter;   policy accept; }
 }
 EOF
 
 cat <<'EOF' > /etc/sysctl.d/99-hardening.conf
 # --------------------------
-# IP Forwarding / routing
+# IP Forwarding / Routing
 # --------------------------
 net.ipv4.ip_forward = 0
 net.ipv6.conf.all.forwarding = 0
@@ -344,7 +338,7 @@ net.ipv6.conf.all.accept_source_route = 0
 net.ipv6.conf.default.accept_source_route = 0
 
 # --------------------------
-# Anti‑spoofing
+# Anti-spoofing
 # --------------------------
 net.ipv4.conf.all.rp_filter = 1
 net.ipv4.conf.default.rp_filter = 1
@@ -357,49 +351,17 @@ net.ipv4.icmp_echo_ignore_broadcasts = 1
 net.ipv4.icmp_ignore_bogus_error_responses = 1
 
 # --------------------------
-# Kernel pointer / info leaks
+# Kernel info leaks
 # --------------------------
 kernel.kptr_restrict = 2
 kernel.dmesg_restrict = 1
 
 # --------------------------
-# Core dumps / memory exposure
+# Core dumps
 # --------------------------
 fs.suid_dumpable = 0
-
-# --------------------------
-# User namespaces / BPF
-# --------------------------
-kernel.unprivileged_bpf_disabled = 1
-kernel.unprivileged_userns_clone = 0
-
-# --------------------------
-# Landlock / seccomp / lockdown
-# --------------------------
-# Already enabled via mkinitcpio cmdline: lsm=landlock,lockdown,yama,apparmor,bpf
-
-# --------------------------
-# IPv6 extra paranoia
-# --------------------------
-net.ipv6.conf.all.accept_ra = 0
-net.ipv6.conf.default.accept_ra = 0
-net.ipv6.conf.all.accept_ra_defrtr = 0
-net.ipv6.conf.default.accept_ra_defrtr = 0
-net.ipv6.conf.all.accept_ra_pinfo = 0
-net.ipv6.conf.default.accept_ra_pinfo = 0
-net.ipv6.conf.all.accept_ra_rtr_pref = 0
-net.ipv6.conf.default.accept_ra_rtr_pref = 0
-net.ipv6.conf.all.autoconf = 0
-net.ipv6.conf.default.autoconf = 0
-
-# -------------------------------------------------
-# Conntrack hardening – mitigate large‑scale SYN/connection floods
-# -------------------------------------------------
-net.netfilter.nf_conntrack_max = 262144          # double the default for a modern SSD
-net.netfilter.nf_conntrack_tcp_timeout_established = 86400   # 1 day
-net.netfilter.nf_conntrack_generic_timeout = 600
-# net.netfilter.nf_conntrack_acct = 0   # enable if you need per‑protocol stats
 EOF
+
 
 
 # -------------------------------------------------------------------------
@@ -467,5 +429,4 @@ sudo journalctl --rotate
 sudo journalctl --vacuum-time=1s
 sudo rm -rf /var/tmp/*
 sudo pacman -Sc --noconfirm
-
 
