@@ -118,3 +118,4 @@ bind = $mod,   M, exec, pactl set-sink-mute @DEFAULT_SINK@ toggle
 # ----- Launch Apps -----
 bind = $mod,   T, exec, alacritty
 bind = $mod,   F, exec, firefox
+bind = $mod,   D, exec, dolphin
