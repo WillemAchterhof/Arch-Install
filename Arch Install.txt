@@ -88,27 +88,73 @@ reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
 # -------------------------------------------------------------------------
 
 pacstrap -K /mnt \
+  # === Base system ===
   base base-devel linux linux-firmware linux-headers \
+  amd-ucode \
   cryptsetup mkinitcpio \
+  binutils inotify-tools \
+  man-db reflector sudo git neovim \
+
+  # === Secure Boot & TPM ===
   sbctl sbsigntools efibootmgr \
   tpm2-tss tpm2-tools \
-  amd-ucode \
+  systemd-homed libpwquality \
+
+  # === Security hardening ===
   apparmor nftables usbguard \
+
+  # === Networking ===
   networkmanager iwd \
-  sudo git neovim man-db reflector \
-  alacritty zsh zsh-completions zsh-autosuggestions \
-  binutils inotify-tools \
-  plymouth systemd-homed libpwquality \
+
+  # === Shell & Terminal ===
+  zsh zsh-completions zsh-autosuggestions \
+  alacritty \
+
+  # === Bluetooth ===
   bluez bluez-utils \
+
+  # === Audio (PipeWire stack) ===
   pipewire pipewire-alsa pipewire-pulse pipewire-jack wireplumber \
-  mesa vulkan-radeon libva-mesa-driver lib32-mesa lib32-vulkan-radeon lib32-libva-mesa-driver \
+
+  # === Graphics stack (AMD Wayland) ===
+  mesa vulkan-radeon libva-mesa-driver \
+  lib32-mesa lib32-vulkan-radeon lib32-libva-mesa-driver \
+
+  # === Wayland compositor & portals ===
   hyprland hyprcursor hypridle hyprlock \
   xdg-desktop-portal-hyprland xorg-xwayland \
   qt5-wayland qt6-wayland \
-  polkit-gnome dunst power-profiles-daemon \
+
+  # === Session / Polkit / Power ===
+  polkit-gnome power-profiles-daemon \
+  sddm \
+
+  # === Desktop utilities ===
   xdg-user-dirs xdg-utils \
-  waybar wofi sddm \
-  grim slurp swappy
+  waybar wofi dunst \
+  grim slurp swappy \
+
+  # === File managers ===
+  dolphin dolphin-plugins kio-extras \
+  yazi \
+
+  # === Media & documents ===
+  mpv haruna \
+  loupe \
+  zathura zathura-pdf-mupdf \
+
+  # === Browser ===
+  firefox \
+
+  # === Archives ===
+  p7zip unzip unrar zip xz \
+
+  # === Clipboard / recording ===
+  wl-clipboard cliphist wf-recorder \
+
+  # === Fonts ===
+  ttf-dejavu ttf-liberation \
+  noto-fonts noto-fonts-cjk noto-fonts-emoji
 
 
 # -------------------------------------------------------------------------
