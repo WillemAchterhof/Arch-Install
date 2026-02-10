@@ -1,5 +1,5 @@
 # ==============================================================================
-#  Arch Linux Full Install (Willem Edition)
+#  Arch Linux Full Install
 #  Secure + ext4 + LUKS2 + TPM2 + Secure Boot + Plymouth
 # ==============================================================================
 
@@ -37,7 +37,7 @@ cryptsetup luksFormat "$ROOT_PART" \
   --key-size 512 \
   --hash sha512 \
   --pbkdf argon2id \
-  --pbkdf-memory 524288 \
+  --pbkdf-memory 262144 \
   --pbkdf-time 2000 \
   --label cryptroot
 
@@ -48,8 +48,8 @@ cryptsetup open "$ROOT_PART" cryptroot   # creates /dev/mapper/cryptroot
 # 3  Filesystems
 # -------------------------------------------------------------------------
 
-mkfs.fat -F32 -n ESP "${DISK}p1"                     # EFI – FAT32
-mkfs.ext4 -L archroot /dev/mapper/cryptroot         # Root – plain ext4
+mkfs.fat -F32 -n ESP "${DISK}p1"
+mkfs.ext4 -L archroot /dev/mapper/cryptroot
 
 
 # -------------------------------------------------------------------------
@@ -62,7 +62,7 @@ mount "${DISK}p1" /mnt/boot
 
 
 # -------------------------------------------------------------------------
-# 5  Time & localisation (still useful before pacstrap)
+# 5  Time & localisation
 # -------------------------------------------------------------------------
 
 timedatectl set-ntp true
@@ -70,7 +70,7 @@ timedatectl set-timezone Europe/Amsterdam
 
 
 # -------------------------------------------------------------------------
-# 6  Pacman configuration – speed things up & get good mirrors
+# 6  Pacman configuration
 # -------------------------------------------------------------------------
 
 sed -i \
@@ -84,7 +84,7 @@ reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
 
 
 # -------------------------------------------------------------------------
-# 7  Install the base system + minimal Hyprland stack
+# 7  Install base system + Hyprland stack
 # -------------------------------------------------------------------------
 
 pacstrap -K /mnt \
@@ -98,16 +98,16 @@ pacstrap -K /mnt \
   sudo git neovim man-db reflector \
   alacritty zsh zsh-completions zsh-autosuggestions \
   binutils inotify-tools \
-  plymouth \
+  plymouth systemd-homed libpwquality \
   bluez bluez-utils \
   pipewire pipewire-alsa pipewire-pulse pipewire-jack wireplumber \
   mesa vulkan-radeon libva-mesa-driver lib32-mesa lib32-vulkan-radeon lib32-libva-mesa-driver \
   hyprland hyprcursor hypridle hyprlock \
-  xdg-desktop-portal-hyprland \
+  xdg-desktop-portal-hyprland xorg-xwayland \
   qt5-wayland qt6-wayland \
-  polkit-gnome dunst \
+  polkit-gnome dunst power-profiles-daemon \
   xdg-user-dirs xdg-utils \
-  waybar wofi \
+  waybar wofi sddm \
   grim slurp swappy
 
 
@@ -116,7 +116,6 @@ pacstrap -K /mnt \
 # -------------------------------------------------------------------------
 
 genfstab -U /mnt >> /mnt/etc/fstab
-
 arch-chroot /mnt
 
 
@@ -159,25 +158,32 @@ pacman -Syu --noconfirm
 # 10  Essential Services
 # -------------------------------------------------------------------------
 
-systemctl enable systemd-timesyncd
-systemctl enable reflector.timer
-systemctl enable fstrim.timer
 systemctl enable apparmor
-systemctl enable NetworkManager
-systemctl enable usbguard
-systemctl enable nftables
 systemctl enable bluetooth
+systemctl enable NetworkManager
+systemctl enable nftables
+systemctl enable fstrim.timer
+systemctl enable power-profiles-daemon
+systemctl enable reflector.timer
+systemctl enable sddm
+systemctl enable systemd-homed
+systemctl enable systemd-resolved
+systemctl enable systemd-timesyncd
+systemctl enable usbguard
 
-cat <<EOF > /etc/NetworkManager/NetworkManager.conf
+ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+
+cat <<'EOF' > /etc/NetworkManager/NetworkManager.conf
 [device]
 wifi.backend=iwd
-EOF
 
-plymouth-set-default-theme -R spinner
+[main]
+dns=systemd-resolved
+EOF
 
 
 # -------------------------------------------------------------------------
-# 11  Localization & Keyboard
+# 11  Localization
 # -------------------------------------------------------------------------
 
 sed -i '/^#en_US.UTF-8 UTF-8/s/^#//' /etc/locale.gen
@@ -188,7 +194,7 @@ echo "KEYMAP=us" > /etc/vconsole.conf
 
 
 # -------------------------------------------------------------------------
-# 12  Hostname & Hosts
+# 12  Hostname
 # -------------------------------------------------------------------------
 
 echo Arch-WA > /etc/hostname
@@ -200,20 +206,32 @@ EOF
 
 
 # -------------------------------------------------------------------------
-# 13  User & Root Setup
+# 13  User Setup (systemd-homed)
 # -------------------------------------------------------------------------
 
 sed -i '/^# %wheel ALL=(ALL:ALL) ALL/s/^# //' /etc/sudoers
 
-useradd -mG wheel,users -s /bin/zsh willem
-passwd willem
+homectl create willem \
+  --storage=luks \
+  --fs-type=ext4 \
+  --enroll-tpm2 \
+  --password \
+  --member-of=wheel
 
+grep homed /etc/pam.d/system-auth
+# if missing create below
+# auth     sufficient pam_systemd_home.so
+# account  sufficient pam_systemd_home.so
+# password sufficient pam_systemd_home.so
+# session  sufficient pam_systemd_home.so
+
+homectl update willem --shell=/usr/bin/zsh
 
 # -------------------------------------------------------------------------
-# 14  mkinitcpio Basics & Plymouth
+# 14  mkinitcpio & Plymouth
 # -------------------------------------------------------------------------
 
-sed -i 's/^MODULES=.*/MODULES=()/' /etc/mkinitcpio.conf
+sed -i 's/^MODULES=.*/MODULES=(amdgpu)/' /etc/mkinitcpio.conf
 sed -i 's/^BINARIES=.*/BINARIES=()/' /etc/mkinitcpio.conf
 sed -i 's|^HOOKS=.*|HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole plymouth block sd-encrypt filesystems fsck)|' /etc/mkinitcpio.conf
 sed -i 's|^#*COMPRESSION=.*|COMPRESSION="zstd"|' /etc/mkinitcpio.conf
@@ -228,7 +246,7 @@ mkinitcpio -P
 
 
 # -------------------------------------------------------------------------
-# 15  mkinitcpio Presets & Bootloader
+# 15  UKI Preset + systemd-boot
 # -------------------------------------------------------------------------
 
 cat <<EOF > /etc/mkinitcpio.d/linux.preset
@@ -243,7 +261,7 @@ bootctl install
 
 
 # -------------------------------------------------------------------------
-# 16  Pacman Hooks for sbctl Signing (UKIs)
+# 16  sbctl Auto Signing Hook
 # -------------------------------------------------------------------------
 
 mkdir -p /etc/pacman.d/hooks
@@ -264,7 +282,7 @@ EOF
 
 
 # -------------------------------------------------------------------------
-# 17  Secure Boot & TPM2 Enrollment
+# 17  Secure Boot & TPM Enrollment
 # -------------------------------------------------------------------------
 
 sbctl create-keys
@@ -286,44 +304,28 @@ table inet filter {
     type filter hook input priority filter;
     policy drop;
 
-    # Logging (comment out once you’re happy)
-    # log prefix "nft-drop: " flags all level warning
-
     ct state invalid drop;
     ct state { established, related } accept;
     iifname "lo" accept;
 
-    # ICMP (IPv4 & IPv6)
     ip protocol icmp accept;
     meta l4proto ipv6-icmp accept;
 
-    # DHCP/DHCPv6 (client side)
     udp dport { 67, 68 } accept;
     udp dport { 546, 547 } accept;
 
-    # mDNS on the sole Wi‑Fi interface
     ip daddr 224.0.0.251 udp dport 5353 accept;
     ip6 daddr ff02::fb udp dport 5353 accept;
-
-    # Example rate‑limit for any future exposed TCP service
-    # tcp dport { 80, 443 } ct state new limit rate 30/second burst 100 accept;
   }
 
-  chain forward { type filter hook forward priority filter;  policy drop; }
-  chain output {  type filter hook output priority filter;   policy accept; }
+  chain forward { type filter hook forward priority filter; policy drop; }
+  chain output  { type filter hook output priority filter; policy accept; }
 }
 EOF
 
 cat <<'EOF' > /etc/sysctl.d/99-hardening.conf
-# --------------------------
-# IP Forwarding / Routing
-# --------------------------
 net.ipv4.ip_forward = 0
 net.ipv6.conf.all.forwarding = 0
-
-# --------------------------
-# Redirects / Source Routing
-# --------------------------
 net.ipv4.conf.all.accept_redirects = 0
 net.ipv4.conf.default.accept_redirects = 0
 net.ipv4.conf.all.secure_redirects = 0
@@ -336,32 +338,15 @@ net.ipv4.conf.all.accept_source_route = 0
 net.ipv4.conf.default.accept_source_route = 0
 net.ipv6.conf.all.accept_source_route = 0
 net.ipv6.conf.default.accept_source_route = 0
-
-# --------------------------
-# Anti-spoofing
-# --------------------------
 net.ipv4.conf.all.rp_filter = 1
 net.ipv4.conf.default.rp_filter = 1
-
-# --------------------------
-# TCP/IP protections
-# --------------------------
 net.ipv4.tcp_syncookies = 1
 net.ipv4.icmp_echo_ignore_broadcasts = 1
 net.ipv4.icmp_ignore_bogus_error_responses = 1
-
-# --------------------------
-# Kernel info leaks
-# --------------------------
 kernel.kptr_restrict = 2
 kernel.dmesg_restrict = 1
-
-# --------------------------
-# Core dumps
-# --------------------------
 fs.suid_dumpable = 0
 EOF
-
 
 
 # -------------------------------------------------------------------------
@@ -376,7 +361,6 @@ PresentDevicePolicy=apply-policy
 EOF
 
 mkdir -p /etc/NetworkManager/conf.d/
-
 cat <<EOF > /etc/NetworkManager/conf.d/20-mac-randomize.conf
 [connection]
 wifi.cloned-mac-address=random
@@ -389,24 +373,19 @@ EOF
 # -------------------------------------------------------------------------
 
 systemctl disable \
+  machines.target \
   NetworkManager-dispatcher.service \
   NetworkManager-wait-online.service \
-  systemd-homed-activate.service \
-  systemd-homed.service \
-  systemd-network-generator.service \
-  systemd-networkd-wait-online.service \
-  systemd-networkd.service \
-  systemd-pstore.service \
-  systemd-resolved.service \
-  systemd-mountfsd.socket \
-  systemd-nsresourced.socket \
-  machines.target \
   remote-integritysetup.target \
   remote-veritysetup.target
-
+  systemd-mountfsd.socket \
+  systemd-network-generator.service \
+  systemd-networkd-wait-online.service \
+  systemd-nsresourced.socket \
+  systemd-pstore.service \
 
 # -------------------------------------------------------------------------
-# 21  Post-Reboot User & Checks
+# 21  Post-Reboot Checks
 # -------------------------------------------------------------------------
 
 su - willem
@@ -416,7 +395,6 @@ sudo sysctl --system
 sudo aa-status
 sudo sbctl verify
 sudo usbguard list-devices
-chmod 700 /home/willem
 
 sudo systemd-cryptenroll /dev/nvme0n1p2 --tpm2-device=auto --tpm2-with-pin=true
 
@@ -426,7 +404,19 @@ sudo systemd-cryptenroll /dev/nvme0n1p2 --tpm2-device=auto --tpm2-with-pin=true
 # -------------------------------------------------------------------------
 
 sudo journalctl --rotate
-sudo journalctl --vacuum-time=1s
+sudo journalctl --vacuum-time=7d
 sudo rm -rf /var/tmp/*
 sudo pacman -Sc --noconfirm
 
+
+# -------------------------------------------------------------------------
+# 23  Disaster Recovery
+# -------------------------------------------------------------------------
+
+# Backup
+cp /var/lib/systemd/home/willem.home /mnt/backup/
+cp -a /etc /mnt/backup/etc
+
+# Restore
+cp willem.home /var/lib/systemd/home/
+homectl authenticate willem.home
