@@ -94,6 +94,7 @@ pacstrap -K /mnt \
   cryptsetup mkinitcpio \
   binutils inotify-tools \
   man-db reflector sudo git neovim \
+  inetutils iproute2 iputils \
 
   # === Secure Boot & TPM ===
   sbctl sbsigntools efibootmgr \
@@ -147,14 +148,15 @@ pacstrap -K /mnt \
   firefox \
 
   # === Archives ===
-  p7zip unzip unrar zip xz \
+  tar gzip p7zip unzip unrar zip xz \
 
   # === Clipboard / recording ===
   wl-clipboard cliphist wf-recorder \
 
-  # === Fonts ===
+  # === Fonts (EN/NL/JP ready) ===
   ttf-dejavu ttf-liberation \
-  noto-fonts noto-fonts-cjk noto-fonts-emoji
+  noto-fonts noto-fonts-cjk noto-fonts-emoji \
+  hunspell hunspell-en_us hunspell-nl hunspell-ja
 
 
 # -------------------------------------------------------------------------
