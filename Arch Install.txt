@@ -4,18 +4,18 @@
 # ==============================================================================
 
 # -------------------------------------------------------------------------
-# 0️⃣  Wipe the target SSD (NVMe) – start from a clean slate
+# 0  Wipe the target SSD (NVMe) – start from a clean slate
 # -------------------------------------------------------------------------
 
 DISK=/dev/nvme0n1
 
 wipefs --all --force "$DISK"
-sgdisk --zap-all "$DISK"*headers can changes but the comands etc. not
+sgdisk --zap-all "$DISK"
 partprobe "$DISK"
 
 
 # -------------------------------------------------------------------------
-# 1️⃣  Partitioning (GPT)
+# 1   Partitioning (GPT)
 #     • 512 MiB EFI System Partition (UEFI & Secure Boot)
 #     • Remainder = Encrypted root (ext4)
 # -------------------------------------------------------------------------
@@ -26,7 +26,7 @@ partprobe "$DISK"
 
 
 # -------------------------------------------------------------------------
-# 2️⃣  LUKS2 encryption (TPM + PIN)
+# 2  LUKS2 encryption (TPM + PIN)
 # -------------------------------------------------------------------------
 
 ROOT_PART="${DISK}p2"
@@ -45,7 +45,7 @@ cryptsetup open "$ROOT_PART" cryptroot   # creates /dev/mapper/cryptroot
 
 
 # -------------------------------------------------------------------------
-# 3️⃣  Filesystems
+# 3  Filesystems
 # -------------------------------------------------------------------------
 
 mkfs.fat -F32 -n ESP "${DISK}p1"                     # EFI – FAT32
@@ -53,7 +53,7 @@ mkfs.ext4 -L archroot /dev/mapper/cryptroot         # Root – plain ext4
 
 
 # -------------------------------------------------------------------------
-# 4️⃣  Mount the new system
+# 4  Mount the new system
 # -------------------------------------------------------------------------
 
 mount /dev/mapper/cryptroot /mnt
@@ -62,7 +62,7 @@ mount "${DISK}p1" /mnt/boot
 
 
 # -------------------------------------------------------------------------
-# 5️⃣  Time & localisation (still useful before pacstrap)
+# 5  Time & localisation (still useful before pacstrap)
 # -------------------------------------------------------------------------
 
 timedatectl set-ntp true
@@ -70,7 +70,7 @@ timedatectl set-timezone Europe/Amsterdam
 
 
 # -------------------------------------------------------------------------
-# 6️⃣  Pacman configuration – speed things up & get good mirrors
+# 6  Pacman configuration – speed things up & get good mirrors
 # -------------------------------------------------------------------------
 
 sed -i \
@@ -84,7 +84,7 @@ reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
 
 
 # -------------------------------------------------------------------------
-# 7️⃣  Install the base system + minimal Hyprland stack
+# 7  Install the base system + minimal Hyprland stack
 # -------------------------------------------------------------------------
 
 pacstrap -K /mnt \
@@ -95,7 +95,7 @@ pacstrap -K /mnt \
   amd-ucode \
   apparmor nftables usbguard \
   networkmanager iwd \
-  sudo git neovim man-db reflector \Revise Arch Linux installation guide for ext4
+  sudo git neovim man-db reflector \
   alacritty zsh zsh-completions zsh-autosuggestions \
   binutils inotify-tools \
   plymouth \
@@ -112,7 +112,7 @@ pacstrap -K /mnt \
 
 
 # -------------------------------------------------------------------------
-# 8️⃣  Generate fstab and chroot
+# 8  Generate fstab and chroot
 # -------------------------------------------------------------------------
 
 genfstab -U /mnt >> /mnt/etc/fstab
@@ -136,7 +136,7 @@ EOF
 
 
 # -------------------------------------------------------------------------
-# 9️⃣  Pacman & Mirrors (inside chroot)
+# 9  Pacman & Mirrors (inside chroot)
 # -------------------------------------------------------------------------
 
 timedatectl set-ntp true
@@ -156,7 +156,7 @@ pacman -Syu --noconfirm
 
 
 # -------------------------------------------------------------------------
-# 10️⃣  Essential Services
+# 10  Essential Services
 # -------------------------------------------------------------------------
 
 systemctl enable systemd-timesyncd
@@ -177,7 +177,7 @@ plymouth-set-default-theme -R spinner
 
 
 # -------------------------------------------------------------------------
-# 11️⃣  Localization & Keyboard
+# 11  Localization & Keyboard
 # -------------------------------------------------------------------------
 
 sed -i '/^#en_US.UTF-8 UTF-8/s/^#//' /etc/locale.gen
@@ -188,7 +188,7 @@ echo "KEYMAP=us" > /etc/vconsole.conf
 
 
 # -------------------------------------------------------------------------
-# 12️⃣  Hostname & Hosts
+# 12  Hostname & Hosts
 # -------------------------------------------------------------------------
 
 echo Arch-WA > /etc/hostname
@@ -200,7 +200,7 @@ EOF
 
 
 # -------------------------------------------------------------------------
-# 13️⃣  User & Root Setup
+# 13  User & Root Setup
 # -------------------------------------------------------------------------
 
 sed -i '/^# %wheel ALL=(ALL:ALL) ALL/s/^# //' /etc/sudoers
@@ -210,7 +210,7 @@ passwd willem
 
 
 # -------------------------------------------------------------------------
-# 14️⃣  mkinitcpio Basics & Plymouth
+# 14  mkinitcpio Basics & Plymouth
 # -------------------------------------------------------------------------
 
 sed -i 's/^MODULES=.*/MODULES=()/' /etc/mkinitcpio.conf
@@ -228,7 +228,7 @@ mkinitcpio -P
 
 
 # -------------------------------------------------------------------------
-# 15️⃣  mkinitcpio Presets & Bootloader
+# 15  mkinitcpio Presets & Bootloader
 # -------------------------------------------------------------------------
 
 cat <<EOF > /etc/mkinitcpio.d/linux.preset
@@ -243,7 +243,7 @@ bootctl install
 
 
 # -------------------------------------------------------------------------
-# 16️⃣  Pacman Hooks for sbctl Signing (UKIs)
+# 16  Pacman Hooks for sbctl Signing (UKIs)
 # -------------------------------------------------------------------------
 
 mkdir -p /etc/pacman.d/hooks
@@ -264,7 +264,7 @@ EOF
 
 
 # -------------------------------------------------------------------------
-# 17️⃣  Secure Boot & TPM2 Enrollment
+# 17  Secure Boot & TPM2 Enrollment
 # -------------------------------------------------------------------------
 
 sbctl create-keys
@@ -277,7 +277,7 @@ systemd-cryptenroll /dev/nvme0n1p2 --recovery-key
 
 
 # -------------------------------------------------------------------------
-# 18️⃣  Firewall & Kernel Hardening
+# 18  Firewall & Kernel Hardening
 # -------------------------------------------------------------------------
 
 cat <<'EOF' > /etc/nftables.conf
@@ -365,7 +365,7 @@ EOF
 
 
 # -------------------------------------------------------------------------
-# 19️⃣  USBGuard & MAC Randomization
+# 19  USBGuard & MAC Randomization
 # -------------------------------------------------------------------------
 
 usbguard generate-policy | tee /etc/usbguard/rules.conf
@@ -374,7 +374,8 @@ cat <<'EOF' > /etc/usbguard/usbguard-daemon.conf
 ImplicitPolicyTarget=block
 PresentDevicePolicy=apply-policy
 EOF
-systemctl restart usbguard
+
+mkdir -p /etc/NetworkManager/conf.d/
 
 cat <<EOF > /etc/NetworkManager/conf.d/20-mac-randomize.conf
 [connection]
@@ -384,7 +385,7 @@ EOF
 
 
 # -------------------------------------------------------------------------
-# 20️⃣  Disable unnecessary services
+# 20  Disable unnecessary services
 # -------------------------------------------------------------------------
 
 systemctl disable \
@@ -406,7 +407,7 @@ systemctl disable \
 
 
 # -------------------------------------------------------------------------
-# 22️⃣  Post-Reboot User & Checks
+# 21  Post-Reboot User & Checks
 # -------------------------------------------------------------------------
 
 su - willem
@@ -422,7 +423,7 @@ sudo systemd-cryptenroll /dev/nvme0n1p2 --tpm2-device=auto --tpm2-with-pin=true
 
 
 # -------------------------------------------------------------------------
-# 23️⃣  System Cleanup
+# 22  System Cleanup
 # -------------------------------------------------------------------------
 
 sudo journalctl --rotate
