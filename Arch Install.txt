@@ -382,7 +382,7 @@ systemctl disable \
   systemd-network-generator.service \
   systemd-networkd-wait-online.service \
   systemd-nsresourced.socket \
-  systemd-pstore.service \
+  systemd-pstore.service
 
 # -------------------------------------------------------------------------
 # 21  Post-Reboot Checks
