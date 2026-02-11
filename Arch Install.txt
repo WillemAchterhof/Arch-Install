@@ -137,7 +137,7 @@ pacstrap -K /mnt \
   waybar wofi dunst \
   grim slurp swappy \
   wlsunset hyprpaper \
-  jq notify-send \
+  jq libnotify \
 
   # === File managers ===
   dolphin \
