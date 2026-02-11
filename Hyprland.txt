@@ -101,7 +101,7 @@ bind = $mod,   Q, exit
 # ----- Kill the focused client (Super + Shift + Q) -----
 bind = $mod+$shift, Q, killactive
 
-# ----- Launch wofi (Super + L) -----
+# ----- Launch wofi (Super + R) -----
 bind = $mod,   R, exec, wofi --show drun
 
 # ----- Lock screen (Super + Ctrl + L) -----
