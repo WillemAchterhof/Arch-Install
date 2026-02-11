@@ -126,7 +126,7 @@ pacstrap -K /mnt \
   # === Wayland compositor & portals ===
   hyprland hyprcursor hypridle hyprlock \
   xdg-desktop-portal-hyprland xorg-xwayland \
-  qt5-wayland qt6-wayland \
+  qt5-wayland qt6-wayland plymouth \
 
   # === Session / Polkit / Power ===
   polkit-gnome power-profiles-daemon \
@@ -155,7 +155,7 @@ pacstrap -K /mnt \
   tar gzip p7zip unzip \
 
   # === Clipboard / recording ===
-  wl-clipboard cliphist wf-recorder clipman \
+  wf-recorder wl-clipboard clipman \
 
   # === Fonts (EN/NL/JP ready) ===
   ttf-dejavu ttf-liberation \
@@ -165,7 +165,7 @@ pacstrap -K /mnt \
   # === System monitoring ===
   btop fastfetch \
   
-# === Password Utility ===
+  # === Password Utility ===
   keepasscx
 
 # -------------------------------------------------------------------------
@@ -175,6 +175,9 @@ pacstrap -K /mnt \
 genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt
 
+nvim /mnt/etc/fstab
+
+# add noatime UUID=... / ext4 defaults,noatime 0 1 
 
 # -------------------------------------------------------------------------
 # 8.0 Environment Variables
@@ -238,6 +241,12 @@ wifi.backend=iwd
 dns=systemd-resolved
 EOF
 
+sudo systemctl edit sddm <<'EOF'
+[Unit]
+After=systemd-homed.service
+Wants=systemd-homed.service
+EOF
+
 
 # -------------------------------------------------------------------------
 # 11  Localization
@@ -266,21 +275,47 @@ EOF
 # 13  User Setup (systemd-homed)
 # -------------------------------------------------------------------------
 
-sed -i '/^# %wheel ALL=(ALL:ALL) ALL/s/^# //' /etc/sudoers
+echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/wheel
+chmod 440 /etc/sudoers.d/wheel
 
 homectl create willem \
   --storage=luks \
   --fs-type=ext4 \
-  --enroll-tpm2 \
+  --luks-discard=no \
   --password \
-  --member-of=wheel
+  --member-of=wheel,video,audio,network \
+  --shell=/bin/zsh
+
+homectl update willem --tpm2-device=auto
+homectl update willem --tpm2-pcrs=0,2,4,7
+homectl recovery-key willem
+
+mkdir -p /var/lib/homed
+homectl update willem --home-dir=/var/lib/homed/willem.home
+
+sudoedit /etc/pam.d/sddm
+
+auth       include      system-login
+auth       optional     pam_gnome_keyring.so
+
+# systemd-homed
+auth       sufficient   pam_systemd_home.so
+account    sufficient   pam_systemd_home.so
+session    sufficient   pam_systemd_home.so
+
+account    include      system-login
+password   include      system-login
+session    include      system-login
+session    optional     pam_gnome_keyring.so auto_start
+
+
+sudoedit /etc/pam.d/login
+
+auth     sufficient pam_systemd_home.so
+account  sufficient pam_systemd_home.so
+session  sufficient pam_systemd_home.so
 
 grep homed /etc/pam.d/system-auth
-# if missing create below
-# auth     sufficient pam_systemd_home.so
-# account  sufficient pam_systemd_home.so
-# password sufficient pam_systemd_home.so
-# session  sufficient pam_systemd_home.so
 
 homectl update willem --shell=/usr/bin/zsh
 
@@ -290,7 +325,7 @@ homectl update willem --shell=/usr/bin/zsh
 
 sed -i 's/^MODULES=.*/MODULES=(amdgpu)/' /etc/mkinitcpio.conf
 sed -i 's/^BINARIES=.*/BINARIES=()/' /etc/mkinitcpio.conf
-sed -i 's|^HOOKS=.*|HOOKS=(base systemd autodetect microcode modconf kms block sd-vconsole sd-encrypt filesystems fsck keyboard plymouth)|' /etc/mkinitcpio.conf
+sed -i 's|^HOOKS=.*|HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole block sd-encrypt filesystems fsck plymouth)|' /etc/mkinitcpio.conf
 sed -i 's|^#*COMPRESSION=.*|COMPRESSION="zstd"|' /etc/mkinitcpio.conf
 sed -i 's|^#*COMPRESSION_OPTIONS=.*|COMPRESSION_OPTIONS="-3"|' /etc/mkinitcpio.conf
 
@@ -299,7 +334,7 @@ cat <<EOF > /etc/kernel/cmdline
 quiet splash rd.luks.name=$UUID=cryptroot rd.luks.options=tpm2-device=auto root=/dev/mapper/cryptroot rootfstype=ext4 lsm=landlock,lockdown,yama,apparmor,bpf apparmor=1
 EOF
 
-mkinitcpio -P
+# mkinitcpio -P
 
 
 # -------------------------------------------------------------------------
@@ -342,14 +377,12 @@ EOF
 # 17  Secure Boot & TPM Enrollment
 # -------------------------------------------------------------------------
 
+mkinitcpio -P
+
 sbctl create-keys
 sbctl enroll-keys --yes-this-might-brick-my-machine
-mkinitcpio -P
 sbctl sign --all
 sbctl verify
-
-systemd-cryptenroll /dev/nvme0n1p2 --recovery-key
-
 
 # -------------------------------------------------------------------------
 # 18  Firewall & Kernel Hardening
@@ -373,6 +406,15 @@ table inet filter {
 
     ip daddr 224.0.0.251 udp dport 5353 accept;
     ip6 daddr ff02::fb udp dport 5353 accept;
+  }
+  
+  chain forward {
+    type filter hook forward priority filter;
+    policy drop;
+
+    ct state { established, related } accept
+    iifname "virbr0" accept
+    oifname "virbr0" accept
   }
 
   chain forward { type filter hook forward priority filter; policy drop; }
@@ -429,12 +471,12 @@ EOF
 # 20  Disable unnecessary services
 # -------------------------------------------------------------------------
 
-systemctl disable \
+  systemctl disable \
   machines.target \
   NetworkManager-dispatcher.service \
   NetworkManager-wait-online.service \
   remote-integritysetup.target \
-  remote-veritysetup.target
+  remote-veritysetup.target \
   systemd-mountfsd.socket \
   systemd-network-generator.service \
   systemd-networkd-wait-online.service \
@@ -453,8 +495,7 @@ sudo aa-status
 sudo sbctl verify
 sudo usbguard list-devices
 
-sudo systemd-cryptenroll /dev/nvme0n1p2 --tpm2-device=auto --tpm2-with-pin=true
-
+sudo systemd-cryptenroll /dev/nvme0n1p2 --tpm2-device=auto --tpm2-with-pin=true --recovery-key
 
 # -------------------------------------------------------------------------
 # 22  System Cleanup
@@ -471,9 +512,17 @@ sudo pacman -Sc --noconfirm
 # -------------------------------------------------------------------------
 
 # Backup
-cp /var/lib/systemd/home/willem.home /mnt/backup/
-cp -a /etc /mnt/backup/etc
+sudo rsync -aHAX --numeric-ids --one-file-system \
+  /var/lib/homed/willem.home /mnt/backupdisk/
 
-# Restore
-cp willem.home /var/lib/systemd/home/
-homectl authenticate willem.home
+Restore from Arch ISO
+cryptsetup luksOpen willem.home willemhome
+mount /dev/mapper/willemhome /mnt
+
+If homed metadata broken
+systemd-homed migrate willem
+
+If TPM bricked
+homectl unlock willem
+
+Enter recovery key.
