@@ -88,6 +88,7 @@ reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
 # -------------------------------------------------------------------------
 
 pacstrap -K /mnt \
+
   # === Base system ===
   base base-devel linux linux-firmware linux-headers \
   amd-ucode \
@@ -106,6 +107,7 @@ pacstrap -K /mnt \
 
   # === Networking ===
   networkmanager iwd \
+  network-manager-applet \
 
   # === Shell & Terminal ===
   zsh zsh-completions zsh-autosuggestions \
@@ -137,7 +139,8 @@ pacstrap -K /mnt \
   wlsunset \
 
   # === File managers ===
-  dolphin yazi \
+  dolphin \
+  yazi \
 
   # === Media & documents ===
   mpv \
@@ -156,8 +159,10 @@ pacstrap -K /mnt \
   # === Fonts (EN/NL/JP ready) ===
   ttf-dejavu ttf-liberation \
   noto-fonts noto-fonts-cjk noto-fonts-emoji \
-  hunspell hunspell-en_us hunspell-nl hunspell-ja
+  hunspell hunspell-en_us hunspell-nl hunspell-ja \
 
+  # === System monitoring ===
+  btop fastfetch
 
 # -------------------------------------------------------------------------
 # 8  Generate fstab and chroot
