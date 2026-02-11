@@ -1,19 +1,19 @@
-# ~/.local/bin/hypr-anim-toggle / Make executable: chmod +x ~/.local/bin/hypr-anim-toggle
+mkdir -p ~/.local/bin
+nvim ~/.local/bin/toggle-animations.sh
 
+Paste:
 #!/bin/bash
 
-CFG="$HOME/.config/hypr"
-ON="$CFG/animations_on.conf"
-OFF="$CFG/animations_off.conf"
-ACTIVE="$CFG/animations_active.conf"
+STATE=$(hyprctl getoption animations:enabled -j | jq -r '.int')
 
-# first run
-[ ! -f "$ACTIVE" ] && cp "$ON" "$ACTIVE"
-
-if grep -q "enabled = true" "$ACTIVE"; then
-    cp "$OFF" "$ACTIVE"
+if [ "$STATE" -eq 1 ]; then
+    hyprctl keyword animations:enabled 0
+    notify-send "Hyprland" "Animations OFF"
 else
-    cp "$ON" "$ACTIVE"
+    hyprctl keyword animations:enabled 1
+    notify-send "Hyprland" "Animations ON"
 fi
 
-hyprctl reload
+
+Make executable:
+chmod +x ~/.local/bin/toggle-animations.sh
