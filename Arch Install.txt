@@ -137,6 +137,7 @@ pacstrap -K /mnt \
   waybar wofi dunst \
   grim slurp swappy \
   wlsunset hyprpaper \
+  jq notify-send \
 
   # === File managers ===
   dolphin \
@@ -162,7 +163,10 @@ pacstrap -K /mnt \
   hunspell hunspell-en_us hunspell-nl hunspell-ja \
 
   # === System monitoring ===
-  btop fastfetch
+  btop fastfetch \
+  
+# === Password Utility ===
+  keepasscx
 
 # -------------------------------------------------------------------------
 # 8  Generate fstab and chroot
