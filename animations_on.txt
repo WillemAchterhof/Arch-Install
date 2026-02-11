@@ -8,3 +8,6 @@ animations {
     animation = fade, 1, 3, ease
     animation = workspaces, 1, 3, ease
 }
+
+
+Run after creating bot files on and off: ln -sf ~/.config/hypr/animations_off.conf ~/.config/hypr/animations_active.conf
