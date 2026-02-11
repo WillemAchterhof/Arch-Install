@@ -2,16 +2,26 @@ mkdir -p ~/.local/bin
 nvim ~/.local/bin/toggle-animations.sh
 
 Paste:
-#!/bin/bash
+#!/usr/bin/env bash
 
+# Get the current state (0 = off, 1 = on)
 STATE=$(hyprctl getoption animations:enabled -j | jq -r '.int')
 
-if [ "$STATE" -eq 1 ]; then
+# Paths to the two animation config files
+ON_CONF=~/.config/hypr/animations_on.conf
+OFF_CONF=~/.config/hypr/animations_off.conf
+ACTIVE_LINK=~/.config/hypr/animations_active.conf   # <-- this is the file we source
+
+if [[ "$STATE" -eq 1 ]]; then
+    # Turn OFF
     hyprctl keyword animations:enabled 0
     notify-send "Hyprland" "Animations OFF"
+    ln -sf "$OFF_CONF" "$ACTIVE_LINK"
 else
+    # Turn ON
     hyprctl keyword animations:enabled 1
     notify-send "Hyprland" "Animations ON"
+    ln -sf "$ON_CONF" "$ACTIVE_LINK"
 fi
 
 Make executable:
