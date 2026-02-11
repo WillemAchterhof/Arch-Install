@@ -155,7 +155,7 @@ pacstrap -K /mnt \
   tar gzip p7zip unzip \
 
   # === Clipboard / recording ===
-  wl-clipboard cliphist wf-recorder \
+  wl-clipboard cliphist wf-recorder clipman \
 
   # === Fonts (EN/NL/JP ready) ===
   ttf-dejavu ttf-liberation \
