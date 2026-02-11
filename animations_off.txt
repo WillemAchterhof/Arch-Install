@@ -1,0 +1,5 @@
+# ~/.config/hypr/animations_off.conf
+
+animations {
+  enabled = false
+}
