@@ -125,4 +125,3 @@ bind = $mod,   V, exec, mpv ~/Videos/*
 
 # ----- Toggle Animations -----
 bind = $alt_r, A, exec, ~/.local/bin/toggle-animations.sh
-source = ~/.config/hypr/animations_active.conf
