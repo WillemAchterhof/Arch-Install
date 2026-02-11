@@ -141,7 +141,7 @@ pacstrap -K /mnt \
   yazi \
 
   # === Media & documents ===
-  mpv haruna \
+  mpv \
   loupe \
   zathura zathura-pdf-mupdf \
 
