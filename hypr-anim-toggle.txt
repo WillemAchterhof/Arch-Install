@@ -14,6 +14,5 @@ else
     notify-send "Hyprland" "Animations ON"
 fi
 
-
 Make executable:
 chmod +x ~/.local/bin/toggle-animations.sh
