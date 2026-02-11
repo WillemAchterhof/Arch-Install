@@ -1,4 +1,5 @@
-# ~/.local/bin/hypr-anim-toggle
+# ~/.local/bin/hypr-anim-toggle / Make executable: chmod +x ~/.local/bin/hypr-anim-toggle
+
 #!/bin/bash
 
 CFG="$HOME/.config/hypr"
