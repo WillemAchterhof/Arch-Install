@@ -43,8 +43,6 @@ animations {
     curve = easeOutExpo
     duration = 0.15
 }
-    duration = 0.15
-}
 
 # -------------------------------------------------
 #  Autostart programs – the ampersand (&) detaches them
