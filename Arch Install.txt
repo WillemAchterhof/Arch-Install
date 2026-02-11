@@ -137,8 +137,7 @@ pacstrap -K /mnt \
   wlsunset \
 
   # === File managers ===
-  dolphin dolphin-plugins kio-extras \
-  yazi \
+  dolphin yazi \
 
   # === Media & documents ===
   mpv \
