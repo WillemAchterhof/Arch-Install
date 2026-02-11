@@ -2,34 +2,126 @@ mkdir -p ~/.local/bin
 nvim ~/.local/bin/toggle-animations.sh
 
 Paste:
-#!/usr/bin/env bash
-# -------------------------------------------------
-# toggle-animations.sh – Right Alt + A
-# -------------------------------------------------
-# Purpose: flip Hyprland's animation state (default OFF)
-#          and keep the sourced file in sync via a symlink.
-# -------------------------------------------------
+# ~/.config/hypr/hyprland.conf
 
-# 1️  Paths (absolute, no trailing spaces)
-ON_CONF="$HOME/.config/hypr/animations_on.conf"
-OFF_CONF="$HOME/.config/hypr/animations_off.conf"
-ACTIVE_LINK="$HOME/.config/hypr/animations_active.conf"   # <-- the file Hyprland sources
+# -------------------------------------------------
+#  Global variables
+# -------------------------------------------------
+$alt_l   = ALT_L
+$alt_r   = ALT_R
+$ctrl_l  = CTRL_L
+$ctrl_r  = CTRL_R
+$shift_l = SHIFT_L
+$shift_r = SHIFT_R
+$mod     = SUPER
+# -------------------------------------------------
+#  Monitor layout
+# -------------------------------------------------
+# Find your monitor names with: hyprctl monitors
+monitor=eDP-1,1920x1080@60,0x0,1
+monitor=DP-1,2560x1440@60,1920x0,1
 
-# 2️  Query current state (0 = off, 1 = on)
-STATE=$(hyprctl getoption animations:enabled -j | jq -r '.int')
+# -------------------------------------------------
+#  Workspaces – limit five
+# -------------------------------------------------
+workspace = 1, monitor:eDP-1
+workspace = 2, monitor:eDP-1
+workspace = 3, monitor:eDP-1
+workspace = 4, monitor:eDP-1
+workspace = 5, monitor:eDP-1
 
-# 3️  Toggle
-if [[ "$STATE" -eq 1 ]]; then
-    # ---- currently ON → turn OFF ----
-    hyprctl keyword animations:enabled 0
-    notify-send "Hyprland" "Animations OFF"
-    ln -sf "$OFF_CONF" "$ACTIVE_LINK"
-else
-    # ---- currently OFF → turn ON ----
-    hyprctl keyword animations:enabled 1
-    notify-send "Hyprland" "Animations ON"
-    ln -sf "$ON_CONF" "$ACTIVE_LINK"
-fi
+# -------------------------------------------------
+#  Input tweaks
+# -------------------------------------------------
+input {
+    kb_layout = us
+    repeat_rate = 30
+    repeat_delay = 250
+}
+
+# -------------------------------------------------
+#  Autostart programs – the ampersand (&) detaches them
+# -------------------------------------------------
+exec = alacritty &
+exec = clipman &
+exec = dunst &
+exec = hypridle &
+exec = hyprlock &
+exec = hyprpaper &
+exec = nm-applet &
+exec = waybar &
+exec = wlsunset -t 3500 -T 3500 &
+exec = wofi --show drun &
+
+# -------------------------------------------------
+#  Key bindings
+# -------------------------------------------------
+# ----- Workspace jump (Alt + u,i,o,p,y) -----
+bind = $alt_l,   U, workspace, 1
+bind = $alt_l,   I, workspace, 2
+bind = $alt_l,   O, workspace, 3
+bind = $alt_l,   P, workspace, 4
+bind = $alt_l,   Y, workspace, 5
+
+# ----- Focus movement inside a workspace (Alt + h/j/k/l) -----
+bind = $alt_l,   H, movefocus, l
+bind = $alt_l,   J, movefocus, d
+bind = $alt_l,   K, movefocus, u
+bind = $alt_l,   L, movefocus, r
+
+# ----- Move window within the same workspace (Ctrl + h/j/k/l) -----
+bind = $ctrl_l,  H, movewindow, l
+bind = $ctrl_l,  J, movewindow, d
+bind = $ctrl_l,  K, movewindow, u
+bind = $ctrl_l,  L, movewindow, r
+
+# ----- Switch whole workspace left/right (Shift + Alt + h/l) -----
+bind = $shift_l+$alt_l, H, workspace, m-1
+bind = $shift_l+$alt_l, L, workspace, m+1
+
+# ----- Move window to another workspace (Ctrl + Alt + h/l) -----
+bind = $ctrl_l+$alt_l, H, movetoworkspace, m-1
+bind = $ctrl_l+$alt_l, L, movetoworkspace, m+1
+
+# ----- Resize window (Shift + Alt + h/j/k/l/n) -----
+bind = $shift_l+$alt_l, H, resizeactive, -20 0
+bind = $shift_l+$alt_l, L, resizeactive,  20 0
+bind = $shift_l+$alt_l, K, resizeactive, 0 -20
+bind = $shift_l+$alt_l, J, resizeactive, 0  20
+bind = $shift_l+$alt_l, N, togglefloating
+
+# ----- Quit Hyprland (Super + Q) -----
+bind = $mod,   Q, exit
+
+# ----- Kill the focused client (Super + Shift + Q) -----
+bind = $mod+$shift, Q, killactive
+
+# ----- Launch wofi (Super + R) -----
+bind = $mod,   R, exec, wofi --show drun
+
+# ----- Lock screen (Super + Ctrl + L) -----
+bind = $mod,   L, exec, hyprlock
+
+# ----- Screenshot of a region (Super + P) -----
+bind = $mod,   P, exec, grim -g "$(slurp)" - | wl-copy
+
+# ----- Volume up/down (Super + Up/Down) -----
+bind = $mod,   Up,   exec, pactl set-sink-volume @DEFAULT_SINK@ +5%
+bind = $mod,   Down, exec, pactl set-sink-volume @DEFAULT_SINK@ -5%
+
+# ----- Mute toggle (Super + M) -----
+bind = $mod,   M, exec, pactl set-sink-mute @DEFAULT_SINK@ toggle
+
+# ----- Launch Apps -----
+bind = $mod,   T, exec, alacritty
+bind = $mod,   F, exec, firefox
+bind = $mod,   D, exec, dolphin
+bind = $mod,   V, exec, mpv ~/Videos/*
+
+# ----- Toggle Animations -----
+bind = $alt_r, A, exec, ~/.local/bin/toggle-animations.sh
+source = ~/.config/hypr/animations_active.conf
+
 
 Make executable:
 chmod +x ~/.local/bin/toggle-animations.sh
