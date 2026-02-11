@@ -148,7 +148,7 @@ pacstrap -K /mnt \
   firefox \
 
   # === Archives ===
-  tar gzip p7zip unzip unrar zip xz \
+  tar gzip p7zip unzip \
 
   # === Clipboard / recording ===
   wl-clipboard cliphist wf-recorder \
