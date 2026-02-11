@@ -1,3 +1,5 @@
+# ~/.config/hypr/hyprland.conf
+
 # -------------------------------------------------
 #  Global variables
 # -------------------------------------------------
@@ -121,3 +123,7 @@ bind = $mod,   T, exec, alacritty
 bind = $mod,   F, exec, firefox
 bind = $mod,   D, exec, dolphin
 bind = $mod,   V, exec, mpv ~/Videos/*
+
+# ----- Toggle Animations -----
+bind = RALT, A, exec, ~/.local/bin/hypr-anim-toggle
+source = ~/.config/hypr/animations_active.conf
