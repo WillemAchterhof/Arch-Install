@@ -36,7 +36,7 @@ input {
 # -------------------------------------------------
 #  Animations
 # -------------------------------------------------
-animations = off # need to build a hotkey for this.
+animations = off
 animation {
     enabled = yes
     curve = easeOutExpo
@@ -55,6 +55,7 @@ exec = waybar &
 exec = dunst &
 exec = hypridle &
 exec = hyprlock &
+exec = wlsunset -t 3500 -T 3500 &
 
 # -------------------------------------------------
 #  Key bindings
@@ -103,7 +104,7 @@ bind = $mod+$shift, Q, killactive
 bind = $mod,   R, exec, wofi --show drun
 
 # ----- Lock screen (Super + Ctrl + L) -----
-bind = $mod, L, exec, hyprlock
+bind = $mod,   L, exec, hyprlock
 
 # ----- Screenshot of a region (Super + P) -----
 bind = $mod,   P, exec, grim -g "$(slurp)" - | wl-copy
@@ -119,3 +120,4 @@ bind = $mod,   M, exec, pactl set-sink-mute @DEFAULT_SINK@ toggle
 bind = $mod,   T, exec, alacritty
 bind = $mod,   F, exec, firefox
 bind = $mod,   D, exec, dolphin
+bind = $mod,   V, exec, mpv ~/Videos/*
