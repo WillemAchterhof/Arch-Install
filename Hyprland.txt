@@ -38,10 +38,11 @@ input {
 # -------------------------------------------------
 #  Animations
 # -------------------------------------------------
-animations = off
-animation {
-    enabled = yes
+animations {
+    enabled = 1
     curve = easeOutExpo
+    duration = 0.15
+}
     duration = 0.15
 }
 
