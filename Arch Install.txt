@@ -136,7 +136,7 @@ pacstrap -K /mnt \
   xdg-user-dirs xdg-utils \
   waybar wofi dunst \
   grim slurp swappy \
-  wlsunset \
+  wlsunset hyprpaper \
 
   # === File managers ===
   dolphin \
