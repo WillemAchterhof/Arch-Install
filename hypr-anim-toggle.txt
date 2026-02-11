@@ -1,0 +1,18 @@
+# ~/.local/bin/hypr-anim-toggle
+#!/bin/bash
+
+CFG="$HOME/.config/hypr"
+ON="$CFG/animations_on.conf"
+OFF="$CFG/animations_off.conf"
+ACTIVE="$CFG/animations_active.conf"
+
+# first run
+[ ! -f "$ACTIVE" ] && cp "$ON" "$ACTIVE"
+
+if grep -q "enabled = true" "$ACTIVE"; then
+    cp "$OFF" "$ACTIVE"
+else
+    cp "$ON" "$ACTIVE"
+fi
+
+hyprctl reload
