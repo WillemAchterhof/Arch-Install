@@ -25,3 +25,20 @@ EOF
 
 Make executable:
 chmod +x ~/.local/bin/toggle-animations.sh
+
+~/.config/hypr/animations_on.conf
+animations {
+    enabled = 1
+
+    bezier = ease, 0.05, 0.9, 0.1, 1.0
+
+    animation = windows, 1, 3, ease
+    animation = windowsOut, 1, 3, ease, popin 80%
+    animation = fade, 1, 3, ease
+    animation = workspaces, 1, 3, ease
+}
+
+~/.config/hypr/animations_off.conf
+animations {
+    enabled = 0
+}
