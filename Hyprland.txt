@@ -36,15 +36,6 @@ input {
 }
 
 # -------------------------------------------------
-#  Animations
-# -------------------------------------------------
-animations {
-    enabled = 1
-    curve = easeOutExpo
-    duration = 0.15
-}
-
-# -------------------------------------------------
 #  Autostart programs – the ampersand (&) detaches them
 # -------------------------------------------------
 exec = alacritty &
@@ -127,27 +118,20 @@ bind = $mod,   V, exec, mpv ~/Videos/*
 bind = $alt_r, A, exec, ~/.local/bin/toggle-animations.sh
 bind = $alt_r, B, exec, ~/.local/bin/random-wallpaper.sh
 source = ~/.config/hypr/animations_active.conf
+EOF
 
 mkdir -p ~/.local/bin
 chmod 700 ~/.local/bin
-EOF
 
 cat <<'EOF' > ~/.local/bin/toggle-animations.sh
 #!/bin/bash
-
 CONF="$HOME/.config/hypr/animations_active.conf"
 
-if grep -q "enabled = 1" "$CONF"; then
-    echo "animations { enabled = 0 }" > "$CONF"
+if grep -q "enabled *= *1" "$CONF"; then
+    ln -sf ~/.config/hypr/animations_off.conf "$CONF"
     notify-send "Hyprland Animations OFF"
 else
-    cat > "$CONF" <<EOT
-animations {
-    enabled = 1
-    curve = easeOutExpo
-    duration = 0.15
-}
-EOT
+    ln -sf ~/.config/hypr/animations_on.conf "$CONF"
     notify-send "Hyprland Animations ON"
 fi
 
@@ -175,6 +159,7 @@ animations {
     enabled = 0
 }
 EOF
+ln -sf ~/.config/hypr/animations_off.conf ~/.config/hypr/animations_active.conf
 
 mkdir -p ~/Pictures/background
 
@@ -188,6 +173,8 @@ WALL=$(find "$WALLDIR" -type f | shuf -n 1)
 echo "$WALL" > "$HOME/.cache/current_wallpaper"
 
 # Set wallpaper via hyprpaper
+pgrep hyprpaper >/dev/null || hyprpaper &
+sleep 0.3
 hyprctl hyprpaper preload "$WALL"
 hyprctl hyprpaper wallpaper "eDP-1,$WALL"
 hyprctl hyprpaper wallpaper "DP-1,$WALL"  # remove if you don’t use external monitor
@@ -206,22 +193,6 @@ cp "$WALL" /usr/share/sddm/themes/breeze/background.jpg
 EOF
 
 sudo chmod +x /usr/local/bin/random-sddm-bg.sh
-
-
-sudo tee /etc/systemd/system/random-sddm-bg.service <<'EOF'
-[Unit]
-Description=Random SDDM Background
-Before=sddm.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/random-sddm-bg.sh
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl enable random-sddm-bg.service
 
 # For Hyprlock
 # background {
