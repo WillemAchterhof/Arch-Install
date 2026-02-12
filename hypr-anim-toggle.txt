@@ -1,35 +1,27 @@
 mkdir -p ~/.local/bin
-nvim ~/.local/bin/toggle-animations.sh
+chmod 700 ~/.local/bin
 
-Paste:
-#!/usr/bin/env bash
-# -------------------------------------------------
-# toggle-animations.sh – Right Alt + A
-# -------------------------------------------------
-# Purpose: flip Hyprland's animation state (default OFF)
-#          and keep the sourced file in sync via a symlink.
-# -------------------------------------------------
+cat <<'EOF' > ~/.local/bin/toggle-animations.sh
+#!/bin/bash
 
-# 1️  Paths (absolute, no trailing spaces)
-ON_CONF="$HOME/.config/hypr/animations_on.conf"
-OFF_CONF="$HOME/.config/hypr/animations_off.conf"
-ACTIVE_LINK="$HOME/.config/hypr/animations_active.conf"   # <-- the file Hyprland sources
+CONF="$HOME/.config/hypr/animations_active.conf"
 
-# 2️  Query current state (0 = off, 1 = on)
-STATE=$(hyprctl getoption animations:enabled -j | jq -r '.int')
-
-# 3️  Toggle
-if [[ "$STATE" -eq 1 ]]; then
-    # ---- currently ON → turn OFF ----
-    hyprctl keyword animations:enabled 0
-    notify-send "Hyprland" "Animations OFF"
-    ln -sf "$OFF_CONF" "$ACTIVE_LINK"
+if grep -q "enabled = 1" "$CONF"; then
+    echo "animations { enabled = 0 }" > "$CONF"
+    notify-send "Hyprland Animations OFF"
 else
-    # ---- currently OFF → turn ON ----
-    hyprctl keyword animations:enabled 1
-    notify-send "Hyprland" "Animations ON"
-    ln -sf "$ON_CONF" "$ACTIVE_LINK"
+    cat > "$CONF" <<EOT
+animations {
+    enabled = 1
+    curve = easeOutExpo
+    duration = 0.15
+}
+EOT
+    notify-send "Hyprland Animations ON"
 fi
+
+hyprctl reload
+EOF
 
 Make executable:
 chmod +x ~/.local/bin/toggle-animations.sh
