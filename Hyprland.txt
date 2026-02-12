@@ -165,19 +165,19 @@ mkdir -p ~/Pictures/background
 
 cat <<'EOF' > ~/.local/bin/random-wallpaper.sh
 #!/bin/bash
-
 WALLDIR="$HOME/Pictures/background"
-WALL=$(find "$WALLDIR" -type f | shuf -n 1)
+mkdir -p "$HOME/.cache"
 
-# Save chosen wallpaper for lockscreen reuse
+WALL=$(find "$WALLDIR" -type f \( -iname '*.jpg' -o -iname '*.png' -o -iname '*.webp' \) | shuf -n 1) || exit 1
+
 echo "$WALL" > "$HOME/.cache/current_wallpaper"
 
-# Set wallpaper via hyprpaper
 pgrep hyprpaper >/dev/null || hyprpaper &
 sleep 0.3
+
 hyprctl hyprpaper preload "$WALL"
 hyprctl hyprpaper wallpaper "eDP-1,$WALL"
-hyprctl hyprpaper wallpaper "DP-1,$WALL"  # remove if you don’t use external monitor
+hyprctl hyprpaper wallpaper "DP-1,$WALL"
 EOF
 
 chmod +x ~/.local/bin/random-wallpaper.sh
