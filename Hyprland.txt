@@ -183,17 +183,6 @@ EOF
 chmod +x ~/.local/bin/random-wallpaper.sh
 
 
-sudo mkdir -p /usr/local/bin
-
-sudo tee /usr/local/bin/random-sddm-bg.sh <<'EOF'
-#!/bin/bash
-WALLDIR="/home/willem/Pictures/background"
-WALL=$(find "$WALLDIR" -type f | shuf -n 1)
-cp "$WALL" /usr/share/sddm/themes/breeze/background.jpg
-EOF
-
-sudo chmod +x /usr/local/bin/random-sddm-bg.sh
-
 # For Hyprlock
 # background {
 #     monitor =
