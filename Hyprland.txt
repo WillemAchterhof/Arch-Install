@@ -48,15 +48,13 @@ animations {
 #  Autostart programs – the ampersand (&) detaches them
 # -------------------------------------------------
 exec = alacritty &
-exec = clipman &
+exec = wl-paste --watch clipman store &
 exec = dunst &
 exec = hypridle &
-exec = hyprlock &
 exec = hyprpaper &
 exec = nm-applet &
 exec = waybar &
 exec = wlsunset -t 3500 -T 3500 &
-exec = wofi --show drun &
 
 # -------------------------------------------------
 #  Key bindings
