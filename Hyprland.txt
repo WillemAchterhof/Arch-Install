@@ -162,11 +162,11 @@ EOF
 ln -sf ~/.config/hypr/animations_off.conf ~/.config/hypr/animations_active.conf
 
 mkdir -p ~/Pictures/background
+mkdir -p ~/.cache
 
 cat <<'EOF' > ~/.local/bin/random-wallpaper.sh
 #!/bin/bash
 WALLDIR="$HOME/Pictures/background"
-mkdir -p "$HOME/.cache"
 
 WALL=$(find "$WALLDIR" -type f \( -iname '*.jpg' -o -iname '*.png' -o -iname '*.webp' \) | shuf -n 1) || exit 1
 
