@@ -1,4 +1,4 @@
-# ~/.config/hypr/hyprland.conf
+cat <<'EOF' > ~/.config/hypr/hyprland.conf
 
 # -------------------------------------------------
 #  Global variables
@@ -51,10 +51,12 @@ exec = alacritty &
 exec = wl-paste --watch clipman store &
 exec = dunst &
 exec = hypridle &
-exec = hyprpaper &
 exec = nm-applet &
 exec = waybar &
 exec = wlsunset -t 3500 -T 3500 &
+
+exec-once = hyprpaper
+exec-once = ~/.local/bin/random-wallpaper.sh
 
 # -------------------------------------------------
 #  Key bindings
@@ -123,5 +125,108 @@ bind = $mod,   V, exec, mpv ~/Videos/*
 
 # ----- Toggle Animations -----
 bind = $alt_r, A, exec, ~/.local/bin/toggle-animations.sh
+bind = $alt_r, B, exec, ~/.local/bin/random-wallpaper.sh
 source = ~/.config/hypr/animations_active.conf
 
+mkdir -p ~/.local/bin
+chmod 700 ~/.local/bin
+EOF
+
+cat <<'EOF' > ~/.local/bin/toggle-animations.sh
+#!/bin/bash
+
+CONF="$HOME/.config/hypr/animations_active.conf"
+
+if grep -q "enabled = 1" "$CONF"; then
+    echo "animations { enabled = 0 }" > "$CONF"
+    notify-send "Hyprland Animations OFF"
+else
+    cat > "$CONF" <<EOT
+animations {
+    enabled = 1
+    curve = easeOutExpo
+    duration = 0.15
+}
+EOT
+    notify-send "Hyprland Animations ON"
+fi
+
+hyprctl reload
+EOF
+
+# Make executable:
+chmod +x ~/.local/bin/toggle-animations.sh
+
+cat <<'EOF' > ~/.config/hypr/animations_on.conf
+animations {
+    enabled = 1
+
+    bezier = ease, 0.05, 0.9, 0.1, 1.0
+
+    animation = windows, 1, 3, ease
+    animation = windowsOut, 1, 3, ease, popin 80%
+    animation = fade, 1, 3, ease
+    animation = workspaces, 1, 3, ease
+}
+EOF
+
+cat <<'EOF' > ~/.config/hypr/animations_off.conf
+animations {
+    enabled = 0
+}
+EOF
+
+mkdir -p ~/Pictures/background
+
+cat <<'EOF' > ~/.local/bin/random-wallpaper.sh
+#!/bin/bash
+
+WALLDIR="$HOME/Pictures/background"
+WALL=$(find "$WALLDIR" -type f | shuf -n 1)
+
+# Save chosen wallpaper for lockscreen reuse
+echo "$WALL" > "$HOME/.cache/current_wallpaper"
+
+# Set wallpaper via hyprpaper
+hyprctl hyprpaper preload "$WALL"
+hyprctl hyprpaper wallpaper "eDP-1,$WALL"
+hyprctl hyprpaper wallpaper "DP-1,$WALL"  # remove if you don’t use external monitor
+EOF
+
+chmod +x ~/.local/bin/random-wallpaper.sh
+
+
+sudo mkdir -p /usr/local/bin
+
+sudo tee /usr/local/bin/random-sddm-bg.sh <<'EOF'
+#!/bin/bash
+WALLDIR="/home/willem/Pictures/background"
+WALL=$(find "$WALLDIR" -type f | shuf -n 1)
+cp "$WALL" /usr/share/sddm/themes/breeze/background.jpg
+EOF
+
+sudo chmod +x /usr/local/bin/random-sddm-bg.sh
+
+
+sudo tee /etc/systemd/system/random-sddm-bg.service <<'EOF'
+[Unit]
+Description=Random SDDM Background
+Before=sddm.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/random-sddm-bg.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl enable random-sddm-bg.service
+
+# For Hyprlock
+# background {
+#     monitor =
+#     path = ~/.cache/current_wallpaper
+#     blur_passes = 2
+#     blur_size = 3
+# }
