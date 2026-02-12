@@ -26,7 +26,7 @@ EOF
 Make executable:
 chmod +x ~/.local/bin/toggle-animations.sh
 
-~/.config/hypr/animations_on.conf
+cat <<'EOF' > ~/.config/hypr/animations_on.conf
 animations {
     enabled = 1
 
@@ -37,8 +37,10 @@ animations {
     animation = fade, 1, 3, ease
     animation = workspaces, 1, 3, ease
 }
+EOF
 
-~/.config/hypr/animations_off.conf
+cat <<'EOF' > ~/.config/hypr/animations_off.conf
 animations {
     enabled = 0
 }
+EOF
