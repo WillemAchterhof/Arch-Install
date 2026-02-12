@@ -23,7 +23,7 @@ fi
 hyprctl reload
 EOF
 
-Make executable:
+# Make executable:
 chmod +x ~/.local/bin/toggle-animations.sh
 
 cat <<'EOF' > ~/.config/hypr/animations_on.conf
