@@ -38,8 +38,10 @@ cryptsetup luksFormat "$ROOT_PART" \
   --hash sha512 \
   --pbkdf argon2id \
   --pbkdf-memory 262144 \
-  --pbkdf-time 2000 \
+  --iter-time 2000 \
   --label cryptroot
+
+/~6|G"kr()oIYBQ3lCfG}Y:'R
 
 cryptsetup open "$ROOT_PART" cryptroot   # creates /dev/mapper/cryptroot
 
@@ -88,85 +90,50 @@ reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
 # -------------------------------------------------------------------------
 
 pacstrap -K /mnt \
-
-  # === Base system ===
   base base-devel linux linux-firmware linux-headers \
   amd-ucode \
   cryptsetup mkinitcpio \
   binutils inotify-tools \
   man-db reflector sudo git neovim \
   inetutils iproute2 iputils \
-
-  # === Secure Boot & TPM ===
   sbctl sbsigntools efibootmgr \
   tpm2-tss tpm2-tools \
-  systemd-homed libpwquality \
-
-  # === Security hardening ===
+  libpwquality \
   apparmor nftables usbguard \
-
-  # === Networking ===
   networkmanager iwd \
   network-manager-applet \
-
-  # === Shell & Terminal ===
   zsh zsh-completions zsh-autosuggestions \
   alacritty \
-
-  # === Bluetooth ===
   bluez bluez-utils \
-
-  # === Audio (PipeWire stack) ===
   pipewire pipewire-alsa pipewire-pulse pipewire-jack wireplumber \
-
-  # === Graphics stack (AMD Wayland) ===
   mesa vulkan-radeon libva-mesa-driver \
   lib32-mesa lib32-vulkan-radeon lib32-libva-mesa-driver \
-
-  # === Wayland compositor & portals ===
   hyprland hyprcursor hypridle hyprlock \
   xdg-desktop-portal-hyprland xorg-xwayland \
   qt5-wayland qt6-wayland plymouth \
-
-  # === Session / Polkit / Power ===
   polkit-gnome power-profiles-daemon \
   sddm \
-
-  # === Desktop utilities ===
   xdg-user-dirs xdg-utils \
   waybar wofi dunst \
   grim slurp swappy \
   wlsunset hyprpaper \
   jq libnotify \
-
-  # === File managers ===
   dolphin \
   yazi \
-
-  # === Media & documents ===
   mpv \
   loupe \
   zathura zathura-pdf-mupdf \
-
-  # === Browser ===
   firefox \
-
-  # === Archives ===
   tar gzip p7zip unzip \
-
-  # === Clipboard / recording ===
-  wf-recorder wl-clipboard clipman \
-
-  # === Fonts (EN/NL/JP ready) ===
+  wf-recorder wl-clipboard cliphist \
   ttf-dejavu ttf-liberation \
   noto-fonts noto-fonts-cjk noto-fonts-emoji \
-  hunspell hunspell-en_us hunspell-nl hunspell-ja \
-
-  # === System monitoring ===
+  hunspell hunspell-en_us hunspell-nl \
   btop fastfetch \
-  
-  # === Password Utility ===
-  keepasscx
+  keepassxc
+
+
+
 
 # -------------------------------------------------------------------------
 # 8  Generate fstab and chroot
@@ -175,7 +142,7 @@ pacstrap -K /mnt \
 genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt
 
-nvim /mnt/etc/fstab
+nvim /etc/fstab
 
 # add noatime UUID=... / ext4 defaults,noatime 0 1 
 
@@ -241,13 +208,6 @@ wifi.backend=iwd
 dns=systemd-resolved
 EOF
 
-sudo systemctl edit sddm <<'EOF'
-[Unit]
-After=systemd-homed.service
-Wants=systemd-homed.service
-EOF
-
-
 # -------------------------------------------------------------------------
 # 11  Localization
 # -------------------------------------------------------------------------
@@ -282,12 +242,12 @@ homectl create willem \
   --storage=luks \
   --fs-type=ext4 \
   --luks-discard=no \
-  --password \
+  --password-change-now \
   --member-of=wheel,video,audio,network \
   --shell=/bin/zsh
 
 homectl update willem --tpm2-device=auto
-homectl update willem --tpm2-pcrs=0,2,4,7
+homectl update willem --tpm2-pcrs=0,2,7
 homectl recovery-key willem
 
 mkdir -p /var/lib/homed
@@ -486,6 +446,12 @@ EOF
 # -------------------------------------------------------------------------
 # 21  Post-Reboot Checks
 # -------------------------------------------------------------------------
+
+sudo systemctl edit sddm <<'EOF'
+[Unit]
+After=systemd-homed.service
+Wants=systemd-homed.service
+EOF
 
 su - willem
 sudo passwd root -l
