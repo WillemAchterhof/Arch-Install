@@ -93,6 +93,8 @@ arch-chroot /mnt
 genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt
 
+clear && cat /mnt/etc/fstab
+
 ROOT_UUID=$(blkid -s UUID -o value /dev/mapper/cryptroot)
 EFI_UUID=$(blkid -s UUID -o value ${DISK}p1)
 
