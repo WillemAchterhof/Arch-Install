@@ -31,7 +31,7 @@ cryptsetup luksFormat "$ROOT_PART" \
   --iter-time 2000 \
   
 # /~6|G"kr()oIYBQ3lCfG}Y:'R <- something like this as Password
-cryptsetup open "$ROOT_PART" cryptroot
+cryptsetup open --allow-discards "$ROOT_PART" cryptroot
 
 # Block 1.4: Partition and Mount volumes
 mkfs.fat -F32 -n ESP "${DISK}p1"
