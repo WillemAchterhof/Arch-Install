@@ -41,34 +41,7 @@ mount /dev/mapper/cryptroot /mnt
 mkdir -p /mnt/boot
 mount "${DISK}p1" /mnt/boot
 
-
-
-
-
-# -------------------------------------------------------------------------
-# 5  Time & localisation
-# -------------------------------------------------------------------------
-
-timedatectl set-ntp true
-timedatectl set-timezone Europe/Amsterdam
-
-# -------------------------------------------------------------------------
-# 6  Pacman configuration
-# -------------------------------------------------------------------------
-
-sed -i \
-  -e 's/^ParallelDownloads =.*/ParallelDownloads = 20/' \
-  -e 's/^#Color/Color/' \
-  -e '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' \
-  /etc/pacman.conf
-
-reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
-  --save
-
-# -------------------------------------------------------------------------
-# 7  Install base system + Hyprland stack
-# -------------------------------------------------------------------------
-
+# Block 2.4: Install base system
 pacstrap -K /mnt \
   base base-devel linux linux-firmware linux-headers \
   amd-ucode \
@@ -111,6 +84,12 @@ pacstrap -K /mnt \
   hunspell hunspell-en_us hunspell-nl \
   btop fastfetch \
   keepassxc
+
+# Block 2.5: Generate fstab and enter chroot
+genfstab -U /mnt >> /mnt/etc/fstab
+arch-chroot /mnt
+
+
 
 # -------------------------------------------------------------------------
 # 8  Generate fstab and chroot
