@@ -89,23 +89,20 @@ pacstrap -K /mnt \
 genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt
 
-nvim //etc/fstab
-# UUID=ROOT-UUID  /  ext4  rw,noatime  0 1
-# UUID=EFI-UUID   /boot  vfat  rw,noatime,fmask=0077,dmask=0077  0 2
-
-
-
-
-# -------------------------------------------------------------------------
-# 8  Generate fstab and chroot
-# -------------------------------------------------------------------------
-
+# Block 2.5: Generate fstab and enter chroot
 genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt
 
-nvim /etc/fstab
+ROOT_UUID=$(blkid -s UUID -o value /dev/mapper/cryptroot)
+EFI_UUID=$(blkid -s UUID -o value ${DISK}p1)
 
-# add noatime UUID=... / ext4 defaults,noatime 0 1 
+cat > /etc/fstab <<EOF
+UUID=$ROOT_UUID  /      ext4  rw,noatime  0 1
+UUID=$EFI_UUID   /boot  vfat  rw,noatime,fmask=0077,dmask=0077  0 2
+EOF
+
+
+
 
 # -------------------------------------------------------------------------
 # 8.0 Environment Variables
