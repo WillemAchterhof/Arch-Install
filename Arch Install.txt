@@ -89,6 +89,11 @@ pacstrap -K /mnt \
 genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt
 
+nvim //etc/fstab
+# UUID=ROOT-UUID  /  ext4  rw,noatime  0 1
+# UUID=EFI-UUID   /boot  vfat  rw,noatime,fmask=0077,dmask=0077  0 2
+
+
 
 
 # -------------------------------------------------------------------------
