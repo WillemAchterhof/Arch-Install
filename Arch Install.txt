@@ -1,24 +1,51 @@
 # ==============================================================================
-#  Arch Linux Full Install
-#  Secure + ext4 + LUKS2 + TPM2 + Secure Boot + Plymouth
-# ==============================================================================
-# PHASE 1: LIVE ISO - DISK SETUP
+#  Arch Linux Full Install: Secure + ext4 + LUKS2 + TPM2 + Secure Boot + Plymouth
 # ==============================================================================
 
-# Block 1.1: Wipe and partition disk
+# PHASE 1: LIVE ISO - BASIC PREPARATION
+# ==============================================================================
+
+# Block 1.1: Check WiFi if needed
+iwctl
+station wlan0 connect SSID
+<password>
+exit
+
+# Block 1.2: Set Root password (SSH)
+passwd
+
+# Block 1.3: Time and timezone setup (on live ISO)
+timedatectl set-ntp true
+timedatectl set-timezone Europe/Amsterdam
+
+# Block 1.4: Pacman configuration
+sed -i \
+  -e 's/^ParallelDownloads =.*/ParallelDownloads = 20/' \
+  -e 's/^#Color/Color/' \
+  /etc/pacman.conf
+    
+reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
+  --save /etc/pacman.d/mirrorlist
+  
+# PHASE 2: LIVE ISO - DISK PREPARATION
+# ==============================================================================
+
+# Block 2.1: Set Variable for Disk
+lsblk
 DISK=/dev/nvme0n1
 
+# Block 2.2: Wipe
 wipefs --all --force "$DISK"
 sgdisk --zap-all "$DISK"
 partprobe "$DISK"
 
-# Block 1.2: Partition
+# Block 2.3: Partition
 sgdisk --new=1:0:+1024MiB --typecode=1:EF00 --change-name=1:"EFI System Partition" "$DISK"
 sgdisk --new=2:0:0       --typecode=2:8300 --change-name=2:"Encrypted Root"       "$DISK"
 
 partprobe "$DISK"
 
-# Block 1.3: Format and encrypt
+# Block 2.4: Format and Encrypt
 ROOT_PART="${DISK}p2"
 
 cryptsetup luksFormat "$ROOT_PART" \
@@ -28,20 +55,30 @@ cryptsetup luksFormat "$ROOT_PART" \
   --hash sha512 \
   --pbkdf argon2id \
   --pbkdf-memory 262144 \
-  --iter-time 2000 \
+  --iter-time 2000
   
-# /~6|G"kr()oIYBQ3lCfG}Y:'R <- something like this as Password
-cryptsetup open --allow-discards "$ROOT_PART" cryptroot
+# When prompted, enter a strong passphrase (you'll use this to unlock the system)
+# Example: /~6|G"kr()oIYBQ3lCfG}Y:'R (but use your own!)
 
-# Block 1.4: Partition and Mount volumes
+# Block 2.5: Open encrypted volume
+cryptsetup open "$ROOT_PART" cryptroot
+
+# Block 2.6: Create Filesystems
 mkfs.fat -F32 -n ESP "${DISK}p1"
 mkfs.ext4 -L archroot /dev/mapper/cryptroot
 
+# Block 2.7: mount volumes
 mount /dev/mapper/cryptroot /mnt
 mkdir -p /mnt/boot
 mount "${DISK}p1" /mnt/boot
 
-# Block 2.4: Install base system
+# Verify mounts
+mount | grep /mnt
+
+# PHASE 3: SYSTEM BOOTSTRAP
+# ==============================================================================
+
+# Block 3.1: Install base system
 pacstrap -K /mnt \
   base base-devel linux linux-firmware linux-headers \
   amd-ucode \
@@ -85,510 +122,26 @@ pacstrap -K /mnt \
   btop fastfetch \
   keepassxc
 
-# Block 2.5: Generate fstab and enter chroot
-genfstab -U /mnt >> /mnt/etc/fstab
-arch-chroot /mnt
-
-# Block 2.5: Generate fstab and enter chroot
-genfstab -U /mnt >> /mnt/etc/fstab
-arch-chroot /mnt
-
-clear && cat /mnt/etc/fstab
-
+# Block 3.2: Generate fstab
 ROOT_UUID=$(blkid -s UUID -o value /dev/mapper/cryptroot)
-EFI_UUID=$(blkid -s UUID -o value ${DISK}p1)
+EFI_UUID=$(blkid -s UUID -o value "${DISK}p1")
 
-cat > /etc/fstab <<EOF
+cat > /mnt/etc/fstab <<EOF
 UUID=$ROOT_UUID  /      ext4  rw,noatime  0 1
 UUID=$EFI_UUID   /boot  vfat  rw,noatime,fmask=0077,dmask=0077  0 2
 EOF
 
+clear && cat /mnt/etc/fstab
 
+#Block 3.3: Enter chroot
+arch-chroot /mnt
 
+# ==============================================================================
+#  Arch Linux Full Install - CHROOT PHASE
+#  IN CHROOT: arch-chroot /mnt
+# ==============================================================================
 
-# -------------------------------------------------------------------------
-# 8.0 Environment Variables
-# -------------------------------------------------------------------------
+# PHASE 4: SYSTEM CONFIGURATION (IN CHROOT)
+# ==============================================================================
 
-cat <<EOF > /etc/environment
-TERMINAL=alacritty
-EDITOR=nvim
-VISUAL=nvim
-MOZ_ENABLE_WAYLAND=1
-QT_QPA_PLATFORM=wayland
-SDL_VIDEODRIVER=wayland
-EOF
-
-# -------------------------------------------------------------------------
-# 9  Pacman & Mirrors (inside chroot)
-# -------------------------------------------------------------------------
-
-timedatectl set-ntp true
-ln -sf /usr/share/zoneinfo/Europe/Amsterdam /etc/localtime
-hwclock --systohc
-
-sed -i \
-  -e 's/^ParallelDownloads =.*/ParallelDownloads = 20/' \
-  -e 's/^#Color/Color/' \
-  -e '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' \
-  /etc/pacman.conf
-
-reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
-  --save /etc/pacman.d/mirrorlist
-
-pacman -Syu --noconfirm
-
-# -------------------------------------------------------------------------
-# 10  Essential Services
-# -------------------------------------------------------------------------
-
-systemctl enable apparmor
-systemctl enable bluetooth
-systemctl enable NetworkManager
-systemctl enable nftables
-systemctl enable fstrim.timer
-systemctl enable power-profiles-daemon
-systemctl enable reflector.timer
-systemctl enable sddm
-systemctl enable systemd-homed
-systemctl enable systemd-resolved
-systemctl enable systemd-timesyncd
-systemctl enable usbguard
-
-cat <<'EOF' > /etc/NetworkManager/NetworkManager.conf
-[device]
-wifi.backend=iwd
-
-[main]
-dns=systemd-resolved
-EOF
-
-ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
-
-# -------------------------------------------------------------------------
-# 11  Localization
-# -------------------------------------------------------------------------
-
-sed -i '/^#en_US.UTF-8 UTF-8/s/^#//' /etc/locale.gen
-locale-gen
-
-echo "LANG=en_US.UTF-8" > /etc/locale.conf
-echo "KEYMAP=us" > /etc/vconsole.conf
-
-# -------------------------------------------------------------------------
-# 12  Hostname
-# -------------------------------------------------------------------------
-
-echo Arch-WA > /etc/hostname
-cat <<'EOF' > /etc/hosts
-127.0.0.1   localhost
-::1         localhost
-127.0.1.1   Arch-WA.localdomain Arch-WA
-EOF
-
-# -------------------------------------------------------------------------
-# 13  User Setup (systemd-homed)
-# -------------------------------------------------------------------------
-
-echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/wheel
-chmod 440 /etc/sudoers.d/wheel
-
-homectl create willem \
-  --storage=luks \
-  --fs-type=ext4 \
-  --luks-discard=no \
-  --password-change-now \
-  --member-of=wheel,video,audio,network \
-  --shell=/bin/zsh
-
-cat <<'EOF' > /etc/pam.d/sddm
-auth       sufficient   pam_systemd_home.so
-auth       include      system-login
-auth       optional     pam_gnome_keyring.so
-
-account    sufficient   pam_systemd_home.so
-account    include      system-login
-
-password   include      system-login
-
-session    sufficient   pam_systemd_home.so
-session    include      system-login
-session    optional     pam_gnome_keyring.so auto_start
-EOF
-
-cat <<'EOF' > /etc/pam.d/login
-auth       sufficient   pam_systemd_home.so
-auth       include      system-login
-
-account    sufficient   pam_systemd_home.so
-account    include      system-login
-
-password   include      system-login
-
-session    sufficient   pam_systemd_home.so
-session    include      system-login
-EOF
-
-# Verify homed integration in system-auth
-grep -q "pam_systemd_home" /etc/pam.d/system-auth || \
-  echo "Note: Check /etc/pam.d/system-auth for homed integration"
-
-# -------------------------------------------------------------------------
-# 14  mkinitcpio & Plymouth
-# -------------------------------------------------------------------------
-
-UUID=$(blkid -s UUID -o value /dev/nvme0n1p2)
-
-cat <<EOF > /etc/crypttab
-cryptroot UUID=$UUID none tpm2-device=auto,tpm2-pcrs=0,2,7
-EOF
-
-sed -i 's/^MODULES=.*/MODULES=(amdgpu)/' /etc/mkinitcpio.conf
-sed -i 's/^BINARIES=.*/BINARIES=()/' /etc/mkinitcpio.conf
-sed -i 's|^HOOKS=.*|HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole block sd-encrypt filesystems fsck plymouth)|' /etc/mkinitcpio.conf
-sed -i 's|^#*COMPRESSION=.*|COMPRESSION="zstd"|' /etc/mkinitcpio.conf
-sed -i 's|^#*COMPRESSION_OPTIONS=.*|COMPRESSION_OPTIONS="-3"|' /etc/mkinitcpio.conf
-
-cat <<EOF > /etc/kernel/cmdline
-quiet splash rd.luks.name=$UUID=cryptroot rd.luks.options=tpm2-device=auto root=/dev/mapper/cryptroot rootfstype=ext4 lsm=landlock,lockdown,yama,apparmor,bpf apparmor=1
-EOF
-clear
-cat /etc/kernel/cmdline
-
-mkinitcpio -P
-
-# -------------------------------------------------------------------------
-# 15  UKI Preset + systemd-boot
-# -------------------------------------------------------------------------
-
-mkdir -p /boot/EFI/Linux
-
-cat <<EOF > /etc/mkinitcpio.d/linux.preset
-PRESETS=('default' 'fallback')
-ALL_kver="/boot/vmlinuz-linux"
-default_uki="/boot/EFI/Linux/arch-linux.efi"
-fallback_uki="/boot/EFI/Linux/arch-linux-fallback.efi"
-fallback_options="-S autodetect"
-EOF
-
-bootctl install
-
-efibootmgr 		# Check if you have left over UEFI entries, remove them with efibootmgr -b INDEX -B and note down Arch index
-efibootmgr --create --disk /dev/nvme0n1 --part 1 --label "Arch Linux" --loader 'EFI\Linux\bootx64.efi' --unicode
-efibootmgr -o ARCH_INDEX_FROM_PREVIOUS_COMMAND # 0 or whatever number your Arch entry shows as
-
-# -------------------------------------------------------------------------
-# 16  sbctl Auto Signing Hook
-# -------------------------------------------------------------------------
-
-mkdir -p /etc/pacman.d/hooks
-cat <<'EOF' > /etc/pacman.d/hooks/zz-sbctl-uki.hook
-[Trigger]
-Type = Path
-Operation = Install
-Operation = Upgrade
-Operation = Replace
-Target = /boot/EFI/Linux/*.efi
-
-[Action]
-Description = Signing UKIs with sbctl...
-When = PostTransaction
-Exec = /usr/bin/sbctl sign --path /boot/EFI/Linux
-NeedsTargets
-EOF
-
-# -------------------------------------------------------------------------
-# 17  Secure Boot & TPM Enrollment
-# -------------------------------------------------------------------------
-
-mkinitcpio -P
-
-sbctl create-keys
-sbctl enroll-keys --yes-this-might-brick-my-machine
-sbctl sign --all
-sbctl verify
-
-# -------------------------------------------------------------------------
-# 18  Firewall & Kernel Hardening
-# -------------------------------------------------------------------------
-
-cat <<'EOF' > /etc/nftables.conf
-table inet filter {
-  chain input {
-    type filter hook input priority filter;
-    policy drop;
-
-    ct state invalid drop;
-    ct state { established, related } accept;
-    iifname "lo" accept;
-
-    ip protocol icmp accept;
-    meta l4proto ipv6-icmp accept;
-
-    # DHCP
-    udp dport { 67, 68 } accept;
-    udp dport { 546, 547 } accept;
-
-    # mDNS (local network discovery)
-    ip daddr 224.0.0.251 udp dport 5353 accept;
-    ip6 daddr ff02::fb udp dport 5353 accept;
-  }
-  
-  chain forward {
-    type filter hook forward priority filter;
-    policy drop;
-
-    ct state { established, related } accept;
-    iifname "virbr0" accept;
-    oifname "virbr0" accept;
-  }
-
-  chain output {
-    type filter hook output priority filter;
-    policy accept;
-  }
-}
-
-cat <<'EOF' > /etc/sysctl.d/99-hardening.conf
-# IP forwarding
-net.ipv4.ip_forward = 0
-net.ipv6.conf.all.forwarding = 0
-
-# Redirect attacks
-net.ipv4.conf.all.accept_redirects = 0
-net.ipv4.conf.default.accept_redirects = 0
-net.ipv4.conf.all.secure_redirects = 0
-net.ipv4.conf.default.secure_redirects = 0
-net.ipv6.conf.all.accept_redirects = 0
-net.ipv6.conf.default.accept_redirects = 0
-net.ipv4.conf.all.send_redirects = 0
-net.ipv4.conf.default.send_redirects = 0
-
-# Source routing attacks
-net.ipv4.conf.all.accept_source_route = 0
-net.ipv4.conf.default.accept_source_route = 0
-net.ipv6.conf.all.accept_source_route = 0
-net.ipv6.conf.default.accept_source_route = 0
-
-# Reverse path filter (prevent IP spoofing)
-net.ipv4.conf.all.rp_filter = 1
-net.ipv4.conf.default.rp_filter = 1
-
-# TCP hardening
-net.ipv4.tcp_syncookies = 1
-net.ipv4.icmp_echo_ignore_broadcasts = 1
-net.ipv4.icmp_ignore_bogus_error_responses = 1
-
-# Kernel hardening
-kernel.kptr_restrict = 2
-kernel.dmesg_restrict = 1
-fs.suid_dumpable = 0
-
-# -------------------------------------------------------------------------
-# 19  USBGuard & MAC Randomization
-# -------------------------------------------------------------------------
-
-usbguard generate-policy | tee /etc/usbguard/rules.conf
-
-cat <<'EOF' > /etc/usbguard/usbguard-daemon.conf
-ImplicitPolicyTarget=block
-PresentDevicePolicy=apply-policy
-EOF
-
-mkdir -p /etc/NetworkManager/conf.d/
-cat <<EOF > /etc/NetworkManager/conf.d/20-mac-randomize.conf
-[connection]
-wifi.cloned-mac-address=random
-ethernet.cloned-mac-address=random
-EOF
-
-# -------------------------------------------------------------------------
-# 20  Disable unnecessary services
-# -------------------------------------------------------------------------
-
-  systemctl disable \
-  machines.target \
-  NetworkManager-dispatcher.service \
-  NetworkManager-wait-online.service \
-  remote-integritysetup.target \
-  remote-veritysetup.target \
-  systemd-mountfsd.socket \
-  systemd-network-generator.service \
-  systemd-networkd-wait-online.service \
-  systemd-nsresourced.socket \
-  systemd-pstore.service
-
-# -------------------------------------------------------------------------
-# 21  Post-Reboot Checks
-# -------------------------------------------------------------------------
-
-# Before running this:
-# 1. Exit chroot: exit
-# 2. Unmount: umount -R /mnt
-# 3. Reboot: reboot
-# 4. Boot into new system (it should boot and ask for LUKS unlock passphrase)
-# 5. Login as root or the new user 'willem'
-# 6. Run these commands:
-
-sudo mkdir -p /etc/systemd/system/sddm.service.d/
-
-sudo tee /etc/systemd/system/sddm.service.d/homed.conf > /dev/null <<'EOF'
-[Unit]
-After=systemd-homed.service
-Wants=systemd-homed.service
-EOF
-
-systemctl status systemd-homed
-# If not running:
-# sudo systemctl start systemd-homed
-# sudo systemctl enable systemd-homed
-
-echo "Checking TPM2..."
-tpm2_getcap handles-persistent
-
-if [ $? -ne 0 ]; then
-  echo "✗ WARNING: TPM2 not accessible"
-  echo "  - Check BIOS for TPM enable"
-  echo "  - Run: systemctl status systemd-tpmdd"
-else
-  echo "✓ TPM2 accessible"
-fi
-
-# Ensure SDDM can access systemd-homed via PAM
-sudo tee /etc/pam.d/sddm > /dev/null <<'EOF'
-auth       sufficient   pam_systemd_home.so
-auth       include      system-login
-auth       optional     pam_gnome_keyring.so
-
-account    sufficient   pam_systemd_home.so
-account    include      system-login
-
-password   include      system-login
-
-session    sufficient   pam_systemd_home.so
-session    include      system-login
-session    optional     pam_gnome_keyring.so auto_start
-EOF
-
-echo "✓ SDDM PAM configuration verified"
-
-# First, enroll the LUKS2 volume with TPM
-UUID=$(lsblk -no UUID /dev/nvme0n1p2)
-
-sudo systemd-cryptenroll /dev/nvme0n1p2 \
-  --tpm2-device=auto \
-  --tpm2-pcrs=0,2,7 \
-  --tpm2-with-pin=true
-
-if [ $? -eq 0 ]; then
-  echo "✓ LUKS2 TPM enrollment successful"
-else
-  echo "✗ LUKS2 TPM enrollment failed"
-  echo "  Continuing anyway (you can unlock with passphrase)"
-fi
-
-# Now bind the user account to TPM
-sudo homectl update willem --tpm2-device=auto
-
-if [ $? -eq 0 ]; then
-  echo "✓ User bound to TPM2 device"
-else
-  echo "✗ Failed to bind user to TPM2 device"
-fi
-
-# Set PCRs for TPM sealing (PCR 0,2,7 for firmware+config)
-sudo homectl update willem --tpm2-pcrs=0,2,7
-
-if [ $? -eq 0 ]; then
-  echo "✓ TPM2 PCRs configured"
-else
-  echo "✗ Failed to set TPM2 PCRs"
-fi
-
-# =========================================================================
-# Step 6: Generate recovery key
-# =========================================================================
-
-echo ""
-echo "==============================================="
-echo "Generating recovery key..."
-echo "==============================================="
-
-sudo homectl recovery-key willem
-
-echo ""
-echo "⚠️  IMPORTANT: Save the recovery key somewhere safe!"
-echo "   You'll need it if TPM fails or you forget the password."
-
-# =========================================================================
-# Step 7: Verify the setup
-# =========================================================================
-
-echo ""
-echo "==============================================="
-echo "Verification checks..."
-echo "==============================================="
-
-echo ""
-echo "1. User status:"
-sudo homectl status willem | grep -E "State|TPM|Home"
-
-echo ""
-echo "2. LUKS2 token info:"
-sudo cryptsetup luksDump /dev/nvme0n1p2 | grep -A 5 "Tokens:"
-
-echo ""
-echo "3. nftables rules:"
-sudo nft list ruleset | head -20
-
-echo ""
-echo "4. AppArmor status:"
-sudo aa-status --enabled && echo "✓ AppArmor enabled" || echo "✗ AppArmor not running"
-
-echo ""
-echo "5. Secure Boot status:"
-sudo sbctl verify
-
-echo ""
-echo "6. USBGuard devices:"
-sudo usbguard list-devices | head -5
-
-
-su - willem
-sudo passwd root -l
-sudo nft list ruleset
-sudo sysctl --system
-sudo aa-status
-sudo sbctl verify
-sudo usbguard list-devices
-
-sudo systemd-cryptenroll /dev/nvme0n1p2 --tpm2-device=auto --tpm2-with-pin=true --recovery-key
-
-# -------------------------------------------------------------------------
-# 22  System Cleanup
-# -------------------------------------------------------------------------
-
-sudo journalctl --rotate
-sudo journalctl --vacuum-time=7d
-sudo rm -rf /var/tmp/*
-sudo pacman -Sc --noconfirm
-
-# -------------------------------------------------------------------------
-# 23  Disaster Recovery
-# -------------------------------------------------------------------------
-
-# Backup
-sudo rsync -aHAX --numeric-ids --one-file-system \
-  /var/lib/homed/willem.home /mnt/backupdisk/
-
-Restore from Arch ISO
-cryptsetup luksOpen willem.home willemhome
-mount /dev/mapper/willemhome /mnt
-
-If homed metadata broken
-systemd-homed migrate willem
-
-If TPM bricked
-homectl unlock willem
-
-Enter recovery key.
+Rest being updated, inprogress
