@@ -13,7 +13,6 @@ wipefs --all --force "$DISK"
 sgdisk --zap-all "$DISK"
 partprobe "$DISK"
 
-
 # -------------------------------------------------------------------------
 # 1   Partitioning (GPT)
 #     • 512 MiB EFI System Partition (UEFI & Secure Boot)
@@ -23,7 +22,6 @@ partprobe "$DISK"
 sgdisk --new=1:0:+512MiB --typecode=1:EF00 --change-name=1:"EFI System Partition" "$DISK"
 sgdisk --new=2:0:0       --typecode=2:8300 --change-name=2:"Encrypted Root"       "$DISK"
 partprobe "$DISK"
-
 
 # -------------------------------------------------------------------------
 # 2  LUKS2 encryption (TPM + PIN)
@@ -45,14 +43,12 @@ cryptsetup luksFormat "$ROOT_PART" \
 
 cryptsetup open "$ROOT_PART" cryptroot   # creates /dev/mapper/cryptroot
 
-
 # -------------------------------------------------------------------------
 # 3  Filesystems
 # -------------------------------------------------------------------------
 
 mkfs.fat -F32 -n ESP "${DISK}p1"
-mkfs.ext4 -L archroot /dev/mapper/cryptroot
-
+mkfs
 
 # -------------------------------------------------------------------------
 # 4  Mount the new system
@@ -62,14 +58,12 @@ mount /dev/mapper/cryptroot /mnt
 mkdir -p /mnt/boot
 mount "${DISK}p1" /mnt/boot
 
-
 # -------------------------------------------------------------------------
 # 5  Time & localisation
 # -------------------------------------------------------------------------
 
 timedatectl set-ntp true
 timedatectl set-timezone Europe/Amsterdam
-
 
 # -------------------------------------------------------------------------
 # 6  Pacman configuration
@@ -82,8 +76,7 @@ sed -i \
   /etc/pacman.conf
 
 reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
-  --save /etc/pacman.d/mirrorlist
-
+  --save
 
 # -------------------------------------------------------------------------
 # 7  Install base system + Hyprland stack
@@ -132,9 +125,6 @@ pacstrap -K /mnt \
   btop fastfetch \
   keepassxc
 
-
-
-
 # -------------------------------------------------------------------------
 # 8  Generate fstab and chroot
 # -------------------------------------------------------------------------
@@ -159,7 +149,6 @@ QT_QPA_PLATFORM=wayland
 SDL_VIDEODRIVER=wayland
 EOF
 
-
 # -------------------------------------------------------------------------
 # 9  Pacman & Mirrors (inside chroot)
 # -------------------------------------------------------------------------
@@ -178,7 +167,6 @@ reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
   --save /etc/pacman.d/mirrorlist
 
 pacman -Syu --noconfirm
-
 
 # -------------------------------------------------------------------------
 # 10  Essential Services
@@ -217,7 +205,6 @@ locale-gen
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
 echo "KEYMAP=us" > /etc/vconsole.conf
 
-
 # -------------------------------------------------------------------------
 # 12  Hostname
 # -------------------------------------------------------------------------
@@ -228,7 +215,6 @@ cat <<'EOF' > /etc/hosts
 ::1         localhost
 127.0.1.1   Arch-WA.localdomain Arch-WA
 EOF
-
 
 # -------------------------------------------------------------------------
 # 13  User Setup (systemd-homed)
@@ -341,7 +327,6 @@ Exec = /usr/bin/sbctl sign --path /boot/EFI/Linux
 NeedsTargets
 EOF
 
-
 # -------------------------------------------------------------------------
 # 17  Secure Boot & TPM Enrollment
 # -------------------------------------------------------------------------
@@ -429,7 +414,6 @@ kernel.kptr_restrict = 2
 kernel.dmesg_restrict = 1
 fs.suid_dumpable = 0
 
-
 # -------------------------------------------------------------------------
 # 19  USBGuard & MAC Randomization
 # -------------------------------------------------------------------------
@@ -447,7 +431,6 @@ cat <<EOF > /etc/NetworkManager/conf.d/20-mac-randomize.conf
 wifi.cloned-mac-address=random
 ethernet.cloned-mac-address=random
 EOF
-
 
 # -------------------------------------------------------------------------
 # 20  Disable unnecessary services
@@ -619,7 +602,6 @@ sudo journalctl --rotate
 sudo journalctl --vacuum-time=7d
 sudo rm -rf /var/tmp/*
 sudo pacman -Sc --noconfirm
-
 
 # -------------------------------------------------------------------------
 # 23  Disaster Recovery
