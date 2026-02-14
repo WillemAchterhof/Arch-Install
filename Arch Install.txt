@@ -150,4 +150,73 @@ arch-chroot /mnt
 # PHASE 4: SYSTEM CONFIGURATION (IN CHROOT)
 # ==============================================================================
 
+# Block 4.1: Time and locale
+timedatectl set-ntp true
+ln -sf /usr/share/zoneinfo/Europe/Amsterdam /etc/localtime
+hwclock --systohc
+
+# Block 4.2: Generate locale
+sed -i '/^#en_US.UTF-8 UTF-8/s/^#//' /etc/locale.gen
+locale-gen
+
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
+echo "KEYMAP=us" > /etc/vconsole.conf
+
+# Block 4.3: Hostname (hosts)
+echo "WA-Arch" > /etc/hostname
+
+cat <<'EOF' > /etc/hosts
+127.0.0.1   localhost
+::1         localhost
+127.0.1.1   WA-Arch.localdomain WA-Arch
+EOF
+
+# Block 4.4: Environment variables
+cat <<EOF > /etc/environment
+TERMINAL=alacritty
+EDITOR=nvim
+VISUAL=nvim
+MOZ_ENABLE_WAYLAND=1
+QT_QPA_PLATFORM=wayland
+SDL_VIDEODRIVER=wayland
+EOF
+
+# Block 4.5: Enable essential services
+systemctl enable apparmor
+systemctl enable bluetooth
+systemctl enable NetworkManager
+systemctl enable nftables
+systemctl enable fstrim.timer
+systemctl enable power-profiles-daemon
+systemctl enable reflector.timer
+systemctl enable sddm
+systemctl enable systemd-homed
+systemctl enable systemd-resolved
+systemctl enable systemd-timesyncd
+systemctl enable usbguard
+
+ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+
+# Block 4.6: Setting nm to use iwd
+cat <<'EOF' > /etc/NetworkManager/NetworkManager.conf
+[device]
+wifi.backend=iwd
+
+[main]
+dns=systemd-resolved
+EOF
+
+# Block 4.8: Pacman setup
+sed -i \
+  -e 's/^ParallelDownloads =.*/ParallelDownloads = 20/' \
+  -e 's/^#Color/Color/' \
+  -e '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' \
+  /etc/pacman.conf
+
+reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
+  --save /etc/pacman.d/mirrorlist
+
+pacman -Syu --noconfirm
+
+# ==============================================================================
 Rest being updated, inprogress
