@@ -151,7 +151,6 @@ arch-chroot /mnt
 # ==============================================================================
 
 # Block 4.1: Time and locale
-timedatectl set-ntp true
 ln -sf /usr/share/zoneinfo/Europe/Amsterdam /etc/localtime
 hwclock --systohc
 
@@ -206,6 +205,10 @@ wifi.backend=iwd
 dns=systemd-resolved
 EOF
 
+# Block 4.7: Network masking
+systemctl mask systemd-networkd
+systemctl mask wpa_supplicant
+
 # Block 4.8: Pacman setup
 sed -i \
   -e 's/^ParallelDownloads =.*/ParallelDownloads = 20/' \
@@ -232,47 +235,93 @@ homectl create willem \
   --storage=luks \
   --fs-type=ext4 \
   --luks-discard=no \
-  --password-change-now=true  \
   --member-of=wheel,video,audio,network \
   --shell=/usr/bin/zsh
-
-# Block 5.4: PAM configuration for systemd-homed
-cat <<'EOF' > /etc/pam.d/sddm
-auth       sufficient   pam_systemd_home.so
-auth       include      system-login
-auth       optional     pam_gnome_keyring.so
-
-account    sufficient   pam_systemd_home.so
-account    include      system-login
-
-password   include      system-login
-
-session    sufficient   pam_systemd_home.so
-session    include      system-login
-session    optional     pam_gnome_keyring.so auto_start
-EOF
-
-cat <<'EOF' > /etc/pam.d/login
-auth       sufficient   pam_systemd_home.so
-auth       include      system-login
-
-account    sufficient   pam_systemd_home.so
-account    include      system-login
-
-password   include      system-login
-
-session    sufficient   pam_systemd_home.so
-session    include      system-login
-EOF
-
-# Block 5.5: SDDM systemd-homed dependency
-mkdir -p /etc/systemd/system/sddm.service.d/
-
-cat <<'EOF' > /etc/systemd/system/sddm.service.d/homed.conf
-[Unit]
-After=systemd-homed.service
-Wants=systemd-homed.service
-EOF
-
+  
+# PHASE 6: MKINITCPIO SETUP
 # ==============================================================================
+
+# Block 6.1: Create crypttab
+UUID=$(blkid -s UUID -o value /dev/nvme0n1p2)
+
+cat <<EOF > /etc/crypttab
+cryptroot UUID=$UUID none tpm2-device=auto,tpm2-pcrs=0,2,7
+EOF
+
+# Block 6.2: mkinitcpio configuration
+sed -i 's/^MODULES=.*/MODULES=(amdgpu)/' /etc/mkinitcpio.conf
+sed -i 's/^BINARIES=.*/BINARIES=()/' /etc/mkinitcpio.conf
+sed -i 's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt plymouth filesystems fsck)|' /etc/mkinitcpio.conf
+sed -i 's|^#*COMPRESSION=.*|COMPRESSION="zstd"|' /etc/mkinitcpio.conf
+sed -i 's|^#*COMPRESSION_OPTIONS=.*|COMPRESSION_OPTIONS="-3"|' /etc/mkinitcpio.conf
+
+# Block 6.2: Kernel command line with TPM PCR sealing
+UUID=$(blkid -s UUID -o value /dev/nvme0n1p2)
+
+cat <<EOF > /etc/kernel/cmdline
+quiet splash rd.luks.name=$UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0,2,7 root=/dev/mapper/cryptroot rootfstype=ext4 lsm=landlock,lockdown,yama,apparmor,bpf apparmor=1
+EOF
+
+# Block 6.3: mkinitcpio UKI preset
+mkdir -p /boot/EFI/Linux
+
+cat <<EOF > /etc/mkinitcpio.d/linux.preset
+PRESETS=('default') # 'fallback' add when using
+# ALL_kver="/boot/vmlinuz-linux"
+default_uki="/boot/EFI/Linux/arch-linux.efi"
+# fallback_uki="/boot/EFI/Linux/arch-linux-fallback.efi"
+# fallback_options="-S autodetect"
+EOF
+
+# PHASE 7: AUTOSIGNING HOOK
+# ==============================================================================
+
+mkdir -p /etc/pacman.d/hooks
+cat <<'EOF' > /etc/pacman.d/hooks/zz-sbctl-uki.hook
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Operation = Replace
+Target = boot/EFI/Linux/*.efi
+
+[Action]
+Description = Signing UKIs with sbctl...
+When = PostTransaction
+Exec = /usr/bin/sbctl sign --path /boot/EFI/Linux
+NeedsTargets
+EOF
+
+# PHASE 8: SECURE BOOT SETUP
+# ==============================================================================
+
+# Block 8.1: sbctl Status (SECURE BOOT ENABLED?)
+sbctl status
+
+# Block 8.2: Create keys
+sbctl create-keys
+
+# Block 8.2: Create UKI
+mkinitcpio -P
+
+# Verify signing
+sbctl verify
+
+# Block 8.3: Create boot entry (only one)
+efibootmgr 		# Check if you have left over UEFI entries, remove them with efibootmgr -b INDEX -B and note down Arch index
+efibootmgr --create --disk /dev/nvme0n1 --part 1 --label "Arch Linux" --loader '\EFI\Linux\arch-linux.efi' --unicode
+efibootmgr -o 0
+
+# Block 8.4: Test autosigning
+rm /boot/EFI/Linux/arch-linux.efi
+pacman -S Linux
+sbctl verify
+
+# Block 8.4: Enroll keys
+sbctl enroll-keys --yes-this-might-brick-my-machine
+
+# PHASE 7: SYSTEM HARDENING
+# ==============================================================================
+
+
 Rest being updated, inprogress
