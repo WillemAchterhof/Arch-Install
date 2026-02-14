@@ -19,7 +19,7 @@ passwd
 timedatectl set-ntp true
 timedatectl set-timezone Europe/Amsterdam
 
-# Block 1.4: Set Pacman
+# Block 1.4: Set pacman
 sed -i \
   -e 's/^ParallelDownloads =.*/ParallelDownloads = 20/' \
   -e 's/^#Color/Color/' \
@@ -29,7 +29,7 @@ sed -i \
 reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
   --save /etc/pacman.d/mirrorlist
 
-# Block 1.5: Set Disk Variable
+# Block 1.5: Set disk variable
 lsblk
 DISK=/dev/nvme0n1
 
@@ -47,7 +47,7 @@ sgdisk --new=2:0:0       --typecode=2:8300 --change-name=2:"Encrypted Root"     
 
 partprobe "$DISK"
 
-# Block 2.3: Format and Encrypt
+# Block 2.3: Format and encrypt
 ROOT_PART="${DISK}p2"
 
 cryptsetup luksFormat "$ROOT_PART" \
@@ -65,7 +65,7 @@ cryptsetup luksFormat "$ROOT_PART" \
 # Block 2.4: Open encrypted volume
 cryptsetup open "$ROOT_PART" cryptroot
 
-# Block 2.5: Create Filesystems
+# Block 2.5: Create filesystems
 mkfs.fat -F32 -n ESP "${DISK}p1"
 mkfs.ext4 -L archroot /dev/mapper/cryptroot
 
@@ -217,6 +217,62 @@ reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
   --save /etc/pacman.d/mirrorlist
 
 pacman -Syu --noconfirm
+
+# PHASE 5: USER AND ROOT SETUP
+# ==============================================================================
+# Block 5.1: Root password
+passwd
+
+# Block 5.2: Sudoers configuration
+echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/wheel
+chmod 440 /etc/sudoers.d/wheel
+
+# Block 5.3: Create user with systemd-homed (NO TPM binding in chroot)
+homectl create willem \
+  --storage=luks \
+  --fs-type=ext4 \
+  --luks-discard=no \
+  --password-change-now=true  \
+  --member-of=wheel,video,audio,network \
+  --shell=/usr/bin/zsh
+
+# Block 5.4: PAM configuration for systemd-homed
+cat <<'EOF' > /etc/pam.d/sddm
+auth       sufficient   pam_systemd_home.so
+auth       include      system-login
+auth       optional     pam_gnome_keyring.so
+
+account    sufficient   pam_systemd_home.so
+account    include      system-login
+
+password   include      system-login
+
+session    sufficient   pam_systemd_home.so
+session    include      system-login
+session    optional     pam_gnome_keyring.so auto_start
+EOF
+
+cat <<'EOF' > /etc/pam.d/login
+auth       sufficient   pam_systemd_home.so
+auth       include      system-login
+
+account    sufficient   pam_systemd_home.so
+account    include      system-login
+
+password   include      system-login
+
+session    sufficient   pam_systemd_home.so
+session    include      system-login
+EOF
+
+# Block 5.5: SDDM systemd-homed dependency
+mkdir -p /etc/systemd/system/sddm.service.d/
+
+cat <<'EOF' > /etc/systemd/system/sddm.service.d/homed.conf
+[Unit]
+After=systemd-homed.service
+Wants=systemd-homed.service
+EOF
 
 # ==============================================================================
 Rest being updated, inprogress
