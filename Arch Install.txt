@@ -87,13 +87,12 @@ pacstrap -K /mnt \
   cryptsetup mkinitcpio \
   binutils inotify-tools \
   man-db reflector sudo git neovim \
-  inetutils iproute2 iputils \
+  iproute2 iputils \
   sbctl sbsigntools efibootmgr \
-  tpm2-tss tpm2-tools \
+  tpm2-tools \
   libpwquality \
   apparmor nftables usbguard \
   networkmanager iwd \
-  network-manager-applet \
   zsh zsh-completions zsh-autosuggestions \
   alacritty \
   bluez bluez-utils \
@@ -241,14 +240,7 @@ homectl create willem \
 # PHASE 6: MKINITCPIO SETUP
 # ==============================================================================
 
-# Block 6.1: Create crypttab
-UUID=$(blkid -s UUID -o value /dev/nvme0n1p2)
-
-cat <<EOF > /etc/crypttab
-cryptroot UUID=$UUID none tpm2-device=auto,tpm2-pcrs=0,2,7
-EOF
-
-# Block 6.2: mkinitcpio configuration
+# Block 6.1: mkinitcpio configuration
 sed -i 's/^MODULES=.*/MODULES=(amdgpu)/' /etc/mkinitcpio.conf
 sed -i 's/^BINARIES=.*/BINARIES=()/' /etc/mkinitcpio.conf
 sed -i 's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt plymouth filesystems fsck)|' /etc/mkinitcpio.conf
@@ -259,18 +251,18 @@ sed -i 's|^#*COMPRESSION_OPTIONS=.*|COMPRESSION_OPTIONS="-3"|' /etc/mkinitcpio.c
 UUID=$(blkid -s UUID -o value /dev/nvme0n1p2)
 
 cat <<EOF > /etc/kernel/cmdline
-quiet splash rd.luks.name=$UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0,2,7 root=/dev/mapper/cryptroot rootfstype=ext4 lsm=landlock,lockdown,yama,apparmor,bpf apparmor=1
+quiet splash rd.luks.name=$UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0,7 root=/dev/mapper/cryptroot rootfstype=ext4 lsm=landlock,lockdown,yama,apparmor,bpf apparmor=1
 EOF
 
 # Block 6.3: mkinitcpio UKI preset
 mkdir -p /boot/EFI/Linux
 
 cat <<EOF > /etc/mkinitcpio.d/linux.preset
-PRESETS=('default') # 'fallback' add when using
-# ALL_kver="/boot/vmlinuz-linux"
+PRESETS=('default')
+ALL_kver="/boot/vmlinuz-linux"
 default_uki="/boot/EFI/Linux/arch-linux.efi"
 # fallback_uki="/boot/EFI/Linux/arch-linux-fallback.efi"
-# fallback_options="-S autodetect"
+# allback_options="-S autodetect"
 EOF
 
 # PHASE 7: AUTOSIGNING HOOK
@@ -301,27 +293,248 @@ sbctl status
 # Block 8.2: Create keys
 sbctl create-keys
 
-# Block 8.2: Create UKI
+# Block 8.3: Create UKI
 mkinitcpio -P
 
-# Verify signing
+# Block 8.4: Sign and verify
+# sbctl sign --all
 sbctl verify
 
-# Block 8.3: Create boot entry (only one)
-efibootmgr 		# Check if you have left over UEFI entries, remove them with efibootmgr -b INDEX -B and note down Arch index
-efibootmgr --create --disk /dev/nvme0n1 --part 1 --label "Arch Linux" --loader '\EFI\Linux\arch-linux.efi' --unicode
-efibootmgr -o 0
+# Block 8.5: Testing
+# pacman -S linux
+# sbctl verify 
 
-# Block 8.4: Test autosigning
-rm /boot/EFI/Linux/arch-linux.efi
-pacman -S Linux
-sbctl verify
+# Block 8.6: Clear boot entries
+efibootmgr
+efibootmgr -b 0000 -B # repeat for all existing boot entries
 
-# Block 8.4: Enroll keys
+# Block 8.7: Create and set boot entry
+efibootmgr --create \
+  --disk /dev/nvme0n1 \
+  --part 1 \
+  --label "Arch Linux" \
+  --loader '\EFI\Linux\arch-linux.efi' \
+  --unicode
+  
+efibootmgr
+  
+efibootmgr -o 0000 # 0000 is likely the only one there
+
+# Block 8.8: Enroll keys
 sbctl enroll-keys --yes-this-might-brick-my-machine
 
-# PHASE 7: SYSTEM HARDENING
+# Block 8.9: TPM Sealing
+systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=0,7 /dev/nvme0n1p2
+
+# PHASE 9: SYSTEM HARDENING
 # ==============================================================================
 
+# Block 9.1: Firewall
+cat <<'EOF' > /etc/nftables.conf
+table inet filter {
+  chain input {
+    type filter hook input priority filter;
+    policy drop;
 
-Rest being updated, inprogress
+    ct state invalid drop;
+    ct state { established, related } accept;
+    iifname "lo" accept;
+
+    ip protocol icmp accept;
+    meta l4proto ipv6-icmp accept;
+
+    # DHCP
+    udp dport { 67, 68 } accept;
+    udp dport { 546, 547 } accept;
+
+    # mDNS (local network discovery)
+    ip daddr 224.0.0.251 udp dport 5353 accept;
+    ip6 daddr ff02::fb udp dport 5353 accept;
+  }
+  
+  chain forward {
+    type filter hook forward priority filter;
+    policy drop;
+
+    ct state { established, related } accept;
+    iifname "virbr0" accept;
+    oifname "virbr0" accept;
+  }
+
+  chain output {
+    type filter hook output priority filter;
+    policy accept;
+  }
+}
+EOF
+
+# Block 9.2: Kernal
+cat <<'EOF' > /etc/sysctl.d/99-hardening.conf
+# IP forwarding
+net.ipv4.ip_forward = 0
+net.ipv6.conf.all.forwarding = 0
+
+# Redirect attacks
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.secure_redirects = 0
+net.ipv4.conf.default.secure_redirects = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+
+# Source routing attacks
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv6.conf.all.accept_source_route = 0
+net.ipv6.conf.default.accept_source_route = 0
+
+# Reverse path filter (prevent IP spoofing)
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+
+# TCP hardening
+net.ipv4.tcp_syncookies = 1
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+
+# Kernel hardening
+kernel.kptr_restrict = 2
+kernel.dmesg_restrict = 1
+fs.suid_dumpable = 0
+
+# Memory and exploitation hardening
+vm.mmap_min_addr = 65536
+kernel.unprivileged_bpf_disabled = 1
+EOF
+
+# Block 9.3: USBGuard
+usbguard generate-policy | tee /etc/usbguard/rules.conf
+
+cat <<'EOF' > /etc/usbguard/usbguard-daemon.conf
+ImplicitPolicyTarget=block
+PresentDevicePolicy=apply-policy
+EOF
+
+# Block 9.4: MAC Randomization
+mkdir -p /etc/NetworkManager/conf.d/
+cat <<EOF > /etc/NetworkManager/conf.d/20-mac-randomize.conf
+[connection]
+wifi.cloned-mac-address=random
+ethernet.cloned-mac-address=random
+EOF
+
+# -------------------------------------------------------------------------
+# Block 9.4: Disable unnecessary services
+# -------------------------------------------------------------------------
+  systemctl disable \
+  machines.target \
+  NetworkManager-dispatcher.service \
+  NetworkManager-wait-online.service \
+  remote-integritysetup.target \
+  remote-veritysetup.target \
+  systemd-mountfsd.socket \
+  systemd-network-generator.service \
+  systemd-networkd-wait-online.service \
+  systemd-nsresourced.socket \
+  systemd-pstore.service
+  
+  
+  
+ #  ===========================================================================================
+
+# -------------------------------------------------------------------------
+# 21  Post-Reboot Checks
+# -------------------------------------------------------------------------
+
+# Before running this:
+# 1. Exit chroot: exit
+# 2. Unmount: umount -R /mnt
+# 3. Reboot: reboot
+# 4. Boot into new system (it should boot and ask for LUKS unlock passphrase)
+# 5. Login as root or the new user 'willem'
+# 6. Run these commands:
+
+
+
+systemctl status systemd-homed
+# If not running:
+# sudo systemctl start systemd-homed
+# sudo systemctl enable systemd-homed
+
+echo "Checking TPM2..."
+tpm2_getcap handles-persistent
+
+# First, enroll the LUKS2 volume with TPM
+UUID=$(lsblk -no UUID /dev/nvme0n1p2)
+
+sudo systemd-cryptenroll /dev/nvme0n1p2 \
+  --tpm2-device=auto \
+  --tpm2-pcrs=0,2,7 \
+  --tpm2-with-pin=true
+
+# Now bind the user account to TPM
+sudo homectl update willem --tpm2-device=auto
+
+# Set PCRs for TPM sealing (PCR 0,2,7 for firmware+config)
+sudo homectl update willem --tpm2-pcrs=0,2,7
+sudo homectl update willem --luks-discard=no
+
+# =========================================================================
+# Step 6: Generate recovery key
+# =========================================================================
+
+sudo homectl recovery-key willem
+
+# =========================================================================
+# Step 7: Verify the setup
+# =========================================================================
+
+sudo homectl status willem | grep -E "State|TPM|Home"
+sudo cryptsetup luksDump /dev/nvme0n1p2 | grep -A 5 "Tokens:"
+sudo nft list ruleset | head -20
+sudo aa-status --enabled && echo "✓ AppArmor enabled" || echo "✗ AppArmor not running"
+sudo sbctl verify
+echo "6. USBGuard devices:"
+sudo usbguard list-devices | head -5
+
+
+su - willem
+sudo passwd root -l
+sudo nft list ruleset
+sudo sysctl --system
+sudo aa-status
+sudo sbctl verify
+sudo usbguard list-devices
+
+sudo systemd-cryptenroll /dev/nvme0n1p2 --tpm2-device=auto --tpm2-with-pin=true --recovery-key
+
+# -------------------------------------------------------------------------
+# 22  System Cleanup
+# -------------------------------------------------------------------------
+
+sudo journalctl --rotate
+sudo journalctl --vacuum-time=7d
+sudo rm -rf /var/tmp/*
+sudo pacman -Sc --noconfirm
+
+# -------------------------------------------------------------------------
+# 23  Disaster Recovery
+# -------------------------------------------------------------------------
+
+# Backup
+sudo rsync -aHAX --numeric-ids --one-file-system \
+  /var/lib/homed/willem.home /mnt/backupdisk/
+
+Restore from Arch ISO
+cryptsetup luksOpen willem.home willemhome
+mount /dev/mapper/willemhome /mnt
+
+If homed metadata broken
+systemd-homed migrate willem
+
+If TPM bricked
+homectl unlock willem
+
+Enter recovery key.
